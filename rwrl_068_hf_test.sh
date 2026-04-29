@@ -59,12 +59,12 @@ python code_068_dqn_agent_test_for_all_games_with_or_without_sensor.py \
     --gym-id "BreakoutNoFrameskip-v4" \
     --env "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
-    --model 2 \
+    --model 1 \
     --sensor 0 \
     --play 0 \
     --display 1 \
     --training 0 \
-    --algo ppo \
+    --algo dqn \
     --test 1 \
     --cuda True \
     --bptime 0 \

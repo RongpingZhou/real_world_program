@@ -1,22 +1,13 @@
-# Running with docker container with pytorch 2.5.1 and necessary cuda and cudnn
-
-# docker run --gpus all -u $(id -u):$(id -g) -ti --rm -v /etc/group:/etc/group:ro -v /etc/passwd:/etc/passwd:ro -v /etc/shadow:/etc/shadow:ro -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw  -v $(realpath ~/mygit/rl/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_pytorch2-5-1:2.5.1
-
-# docker run -u $(id -u):$(id -g) -ti --rm -v /etc/group:/etc/group:ro -v /etc/passwd:/etc/passwd:ro -v /etc/shadow:/etc/shadow:ro -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v $(realpath ~/mygit/rl/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_pytorch2-5-1:2.5.1
-
 # xhost +local:docker
 
 # docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
 
-# from code 058
 # action 0 needs wait time while other keys have physical hold time which cannot be changed by software
 # human player won't wait for the key released, so the below wait time is removed
 # NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
 
 import time
 import numpy as np
-import statistics
-import pickle
 from collections import deque
 from typing import Callable, List, Optional, Tuple
 import hashlib
@@ -31,19 +22,10 @@ sys.path.append("domain/")
 sys.path.append("mybuffer/")
 
 from evaluation.atari_data import get_human_normalized_score, get_env_id
-from evaluation import library as rly
-from evaluation import metrics
-from evaluation import plot_utils
 
 from mybuffer.replaybm import ReplayBuffer
 
 import pygame
-from pygame import Surface
-from pygame.event import Event
-
-import domain.flappy_bird as flappy_bird
-from domain.flappy_bird import FlappyBirdEnv
-# print(f"flappy bird window size: {flappy_bird.SCREENWIDTH} x {flappy_bird.SCREENHEIGHT}")
 
 import tkinter as tk
 
@@ -53,37 +35,22 @@ import gymnasium as gym
 from gymnasium import Env, logger
 from gymnasium.wrappers import TimeLimit
 from gymnasium.core import ActType, ObsType
-from gymnasium.error import DependencyNotInstalled
 from gymnasium.spaces import Box, Discrete, MultiBinary, MultiDiscrete
 
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.atari_wrappers import (
-    NoopResetEnv,
-    MaxAndSkipEnv,
-    EpisodicLifeEnv,
-    FireResetEnv,
-    WarpFrame,
-    ClipRewardEnv,
-)
 from stable_baselines3.common.utils import get_linear_fn, safe_mean, set_random_seed, polyak_update, get_parameters_by_name
-from stable_baselines3.common.logger import configure
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv, VecFrameStack, VecNormalize, VecTransposeImage
+
+from rl_zoo3 import ALGOS, create_test_env, get_saved_hyperparams
+from rl_zoo3.load_from_hub import download_from_hub
+from rl_zoo3.utils import StoreDict, get_model_path
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.distributions.categorical import Categorical
-from torch.utils.tensorboard import SummaryWriter
-
 from datetime import datetime
-
-import skimage
-from skimage import transform, color, exposure
 
 try:
     import cv2
-
     cv2.ocl.setUseOpenCL(False)
 except ImportError:
     cv2 = None  # type: ignore[assignment]
@@ -114,8 +81,7 @@ except ImportError:
 import matplotlib
 import matplotlib.pyplot as plt
 
-# Use 'TkAgg', 'Qt5Agg', 'Qt4Agg', etc.
-# matplotlib.use('TkAgg')
+from huggingface_sb3 import EnvironmentName
 
 def setup_matplotlib_backend():
     """Configure matplotlib backend based on environment"""
@@ -150,10 +116,52 @@ matplotlib_backend = setup_matplotlib_backend()
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--gym-id', type=str, default="FlappyBird",
-    # parser.add_argument('--gym-id', type=str, default="ALE/Breakout-v5",
     parser.add_argument('--gym-id', type=str, default="BreakoutNoFrameskip-v4",
         help='the id of the gym environment')
+    parser.add_argument("--env", type=EnvironmentName, default="BreakoutNoFrameskip-v4", 
+        help="the environment ID for loading huggingface model, should be the same as --gym-id")
+    parser.add_argument("--folder", type=str, default="rl-trained-agents", 
+        help="Log folder")
+    parser.add_argument("--algo", default="dqn", type=str, required=False, choices=list(ALGOS.keys()), 
+        help="RL Algorithm")
+    parser.add_argument("-n", "--n-timesteps", default=1000, type=int, 
+        help="number of timesteps")
+    parser.add_argument("--num-threads", default=-1, type=int, 
+        help="Number of threads for PyTorch (-1 to use default)")
+    parser.add_argument("--n-envs", default=1, type=int, 
+        help="number of environments")
+    parser.add_argument("--exp-id", default=0, type=int, 
+        help="Experiment ID (default: 0: latest, -1: no exp folder)")
+    parser.add_argument("--verbose", default=1, type=int, 
+        help="Verbose mode (0: no output, 1: INFO)")
+    parser.add_argument("--device", default="auto", type=str, 
+        help="PyTorch device to be use (ex: cpu, cuda...)")
+    parser.add_argument("--load-best", action="store_true", default=False, 
+        help="Load best model instead of last model if available")
+    parser.add_argument("--deterministic", action="store_true", default=False, 
+        help="Use deterministic actions")
+    parser.add_argument("--load-checkpoint", type=int, 
+        help="Load checkpoint instead of last model if available, you must pass the number of timesteps corresponding to it",)
+    parser.add_argument("--load-last-checkpoint", action="store_true", default=False, 
+        help="Load last checkpoint instead of last model if available")
+    parser.add_argument("--stochastic", action="store_true", default=False, 
+        help="Use stochastic actions")
+    parser.add_argument("--norm-reward", action="store_true", default=False, 
+        help="Normalize reward if applicable (trained with ecNormalize)")
+    parser.add_argument("--reward-log", default="", type=str, 
+        help="Where to log reward")
+    parser.add_argument("--gym-packages", type=str, nargs="+", default=[], 
+        help="Additional external Gym environment package modules to import")
+    parser.add_argument("--env-kwargs", type=str, nargs="+", action=StoreDict, 
+        help="Optional keyword argument to pass to the env constructor")
+    parser.add_argument("--custom-objects", action="store_true", default=False, 
+        help="Use custom objects to solve loading issues")
+    parser.add_argument("-P", "--progress", action="store_true", default=False, 
+        help="if toggled, display a progress bar using tqdm and rich")
+    parser.add_argument("--max-episode-steps", type=int, default=60000,
+        help="how many steps to run in one episode in each environment")
+    parser.add_argument("--model", type=int, default=4,
+        help="model for the agent, 0 is random action, 1 is CNN, 2 is huggingface model, 3 is transformer, 4 is the standard CNN model")
     parser.add_argument('--model-file', type=str, default=None,
         help='the model file name for the agent to load')
     parser.add_argument('--buffer-file', type=str, default=None,
@@ -176,8 +184,6 @@ def parse_args():
         help="0 is not training, 1 is training, 2 is transfer training")
     parser.add_argument("--resume", type=int, default=0,
         help="0 is not resuming, 1 is resuming from last checkpoint, 2 is resuming from specific checkpoint-file")
-    parser.add_argument("--test", type=int, default=0,
-        help="0 is not testing, 1 is testing")
     parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, cuda will be enabled by default")
     parser.add_argument("--num-steps", type=int, default=5,
@@ -213,19 +219,14 @@ if args.display == 1 or args.plot == 1:
     screen_height = root.winfo_screenheight()
     print(f"screen width: {screen_width}, screen height: {screen_height}")
 
-    # window_x = 50
-    # window_y = screen_height - flappy_bird.SCREENHEIGHT - 120
-    # window_x = 350
     window_x = 1200 
     window_y = 80
-    # window_y = screen_height - 210 - 120
     os.environ['SDL_VIDEO_WINDOW_POS'] = f"{window_x},{window_y}"
 
 NOOP_MAX = 30
 ENVS = 0
 FRAMES_SKIP = 4
 LEARNING_RATE = 1e-4
-# BUFFER_SIZE = 1_000_000  # 1 million
 BUFFER_SIZE = 100_000  # 100k
 LEARNING_STARTS = BUFFER_SIZE  # Number of steps before starting training
 GAMMA = 0.99
@@ -236,26 +237,13 @@ TARGET_UPDATE_INTERVAL = 1_000  # Update the target network every `TARGET_UPDATE
 EXPLORATION_FRACTION = 0.1  # Fraction of entire training period over which the exploration rate is annealed
 EXPLORATION_INITIAL_EPSILON = 1.0  # Initial value of epsilon in epsilon-greedy exploration
 EXPLORATION_FINAL_EPSILON = 0.01  # Final value of epsilon in epsilon-greedy exploration
-# TEST_STEP_SIZE =  1_000
-# MAX_TEST_STEPS = 10_000  # 1 million steps
-# TEST_STEP_SIZE =  10_000_000
-# MAX_TEST_STEPS = 200_000_000  # 200 million steps
 TEST_STEP_SIZE =  1_000_000
 MAX_TEST_STEPS = 10_000_000  # 10 million steps
-
-# TEST_STEP_SIZE =  100_000
-# MAX_TEST_STEPS = 1_000_000
-# TEST_MAX_TEST_STEPS = 302_000  # 10 million steps
-
-# TEST_STEP_SIZE =  100_000
-# MAX_TEST_STEPS = 1_000_000
-# TEST_MAX_TEST_STEPS = 1_000_000  # 10 million steps
 
 IMAGE_CHANNELS = 4
 STACK_FRAMES = 4
 IMAGE_ROWS = 84
 IMAGE_COLS = 84
-# SERIAL_DELAY_TIME = 0.042
 SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.067 # elite typist speed
 print(f"SLIGHTLY_MORE_THAN_KEY_HOLD_TIME: {SLIGHTLY_MORE_THAN_KEY_HOLD_TIME} seconds")
 OFFSET = 0.2 # to capture the frame after the key has pressed for 0.2 * hold time, to make sure the frame has the effect of the key press
@@ -272,30 +260,7 @@ class DQNModel(nn.Module):
         super(DQNModel, self).__init__()
         self.input_shape = input_shape
         self.n_actions = n_actions
-        # self.network = nn.Sequential(
-        #     # self.layer_init(nn.Conv2d(self.input_shape[0], 32, 8, stride=4)),
-        #     # nn.ReLU(),
-        #     # self.layer_init(nn.Conv2d(32, 64, 4, stride=2)),
-        #     # nn.ReLU(),
-        #     # self.layer_init(nn.Conv2d(64, 64, 3, stride=1)),
-        #     # nn.ReLU(),
-        #     # nn.Flatten(),
-        #     # self.layer_init(nn.Linear(64 * 7 * 7, 512)),
-        #     # nn.ReLU(),
-        #     # self.layer_init(nn.Linear(512, self.n_actions), std=1.),
 
-        #     nn.Conv2d(self.input_shape[0], 32, 8, stride=4),
-        #     nn.ReLU(),
-        #     nn.Conv2d(32, 64, 4, stride=2),
-        #     nn.ReLU(),
-        #     nn.Conv2d(64, 64, 3, stride=1),
-        #     nn.ReLU(),
-        #     nn.Flatten(),
-        #     nn.Linear(64 * 7 * 7, 512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, self.n_actions),
-        # )
-        
         self.cnn = nn.Sequential(
             nn.Conv2d(self.input_shape[0], 32, kernel_size=8, stride=4, padding=0),
             nn.ReLU(),
@@ -354,8 +319,6 @@ class DQNAgent:
         
         self.learning_rate = learning_rate
         
-        # self.rnd_calls = 0
-
         print(f"DQN Agent Configuration:")
         print(f"  Environment: {env.spec.id if env.spec else 'Unknown'}")
         print(f"  Observation shape: {self.obs_shape}")
@@ -364,9 +327,6 @@ class DQNAgent:
         print(f"  Device: {self.device}")
         
         set_random_seed(seed, using_cuda=self.device.type == torch.device("cuda").type)
-        # print("self.device.type == torch.device(\"cuda\").type:", self.device.type == torch.device("cuda").type)
-        # raise
-        # set_random_seed(seed, using_cuda=True)
         self.action_space.seed(seed)
 
         # Create SB3 ReplayBuffer
@@ -393,8 +353,6 @@ class DQNAgent:
         self.batch_norm_stats_target = get_parameters_by_name(self.target_dQ_network, ["running_"])
         
         # Get the optimizer
-        # self.optimizer = optim.RMSprop(self.dQ_network.parameters(), lr=self.learning_rate, eps=0.1)
-        # self.optimizer = optim.Adam(self.dQ_network.parameters(), lr=self.learning_rate, eps=1e-5)
         self.optimizer = optim.Adam(self.dQ_network.parameters(), lr=self.learning_rate, eps=1e-8)
         print("Agent optimizer:")
         print(self.optimizer)
@@ -403,15 +361,11 @@ class DQNAgent:
             for k, v in group.items():
                 if k != 'params':
                     print(f"    {k}: {v}")
+        self._current_progress_remaining = 1.0
         self.exploration_rate = 0.0
         self.exploration_schedule = get_linear_fn(exploartion_initial_epsilon, exploartion_final_epsilon, exploartion_fraction)
         
     def preprocess(self, image: np.ndarray) -> np.ndarray:
-        # image = skimage.color.rgb2gray(image)
-        # image = skimage.transform.resize(image, (IMAGE_ROWS, IMAGE_COLS), mode = 'constant')
-        # cv2.imshow('Image', np.rot90(np.flip(image, axis=1)))
-        # cv2.waitKey(1)
-        
         if args.forpaper == 1:
             # save file for analysis
             np.save("original_file.npy", image)
@@ -422,44 +376,25 @@ class DQNAgent:
                 cv2.waitKey(1)
         
         if args.crop == 1:
-            # image size is 340 x 258
-            # image = image[70:410, 285:545]
-            # image = image[112:243, 300:395]
-            
-            # image size is 340 x 258
-            # image = image[111:248, 300:405]
-            # image = image[100:318, 295:460]
             image = image[105:425, 205:450]
-            # image = image[80:400, 302:532]
 
             if args.forpaper == 1:
                 # save file for analysis
                 np.save("cropped_file.npy", image)
                 # need to remove in the experiment
 
-        # image =image[:, :, [2, 1, 0]]
-        # cv2.imshow('Image', np.rot90(np.flip(image, axis=1)))
-        # cv2.imshow('Image', image[:, :, [2, 1, 0]])
         if args.display == 1 and args.forpaper == 0:
             cv2.imshow('Image', image)
             # cv2.moveWindow('Image', 0, 800)
             cv2.waitKey(1)
 
         # the code is copied from 
-        # gym.wrappers.ResizeObservation(env, (IMAGE_ROWS, IMAGE_COLS))
-        # gym.wrappers.GrayscaleObservation(env)
-        # image = cv2.resize(image, (self.network_input_shape[1], self.network_input_shape[2]), interpolation=cv2.INTER_AREA)
-        # image = np.sum(np.multiply(image, np.array([0.2125, 0.7154, 0.0721])), axis=-1).astype(np.uint8)
         image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         image = cv2.resize(image, (self.network_input_shape[1], self.network_input_shape[2]), interpolation=cv2.INTER_AREA)
 
         if args.forpaper == 1:
             # save file for analysis
             np.save("preprocessed_file.npy", image)
-            # need to remove in the experiment
-            # time.sleep(2)
-        # cv2.moveWindow('Image', 1000, 0)
-        # cv2.waitKey(1)
                 
         return image
 
@@ -489,16 +424,15 @@ class DQNAgent:
         :param total_timesteps:
         """
         self._current_progress_remaining = 1.0 - float(total_steps) / float(max_timesteps) if 1.0 - float(total_steps) / float(max_timesteps) > 0.0 else 0.0
-
+                
     def update_exploration_rate(self, 
                                 total_steps: int=0):
         
         progress_remaining = 1.0 - float(total_steps / MAX_TEST_STEPS) if 1.0 - float(total_steps / MAX_TEST_STEPS) > 0.0 else 0.0
         self.exploration_rate = self.exploration_schedule(progress_remaining)
-        # print(f"1-progress_remaining = {1-progress_remaining}, self.exploration_rate: {self.exploration_rate}")
                 
-    def get_action_for_training(self, 
-                                total_steps: int=0, 
+    def get_action_for_training(self,
+                                total_steps: int=0,
                                 state: torch.Tensor = None,
                                 deterministic: bool = False
                                 ) -> Tuple[int]:
@@ -507,28 +441,12 @@ class DQNAgent:
         """
         if total_steps < LEARNING_STARTS:
             action = self.env.action_space.sample()  # Random action before learning starts
-            # print(f"total_steps: {total_steps}, taking random action: {action} before learning starts")
-            # raise Exception("stop here for debug")
         else:
-            # self.rnd_calls += 1
-            # print(f"rnd_calls: {self.rnd_calls}")
-            # if not deterministic and random.random() < epsilon:
             if not deterministic and np.random.rand() < self.exploration_rate:
                 action = self.env.action_space.sample()  # Random action
-                # if 200470 <= total_steps <= 202000:  # Adjust to your checkpoint step + 10
-                #     print(f"Step {total_steps}: Action: {action} (Exploration), self.exploration_rate: {self.exploration_rate}")
             else:
                 action = self.get_action(state)
-                # if 200470 <= total_steps <= 202000:  # Adjust to your checkpoint step + 10
-                #     print(f"Step {total_steps}: Action: {action} (Exploitation)")
-            # print(f"total_steps: {total_steps}, get_action_for_training: self.exploration_rate: {self.exploration_rate}, action: {action}")
-        # print(f"get_action_for_training: exploration_rate: {exploration_rate}")
-        # progress_remaining = 1.0 - float(total_steps / MAX_TEST_STEPS) if 1.0 - float(total_steps / MAX_TEST_STEPS) > 0.0 else 0.0
-        # internal_exploration_rate = self.exploration_schedule(progress_remaining)
-        # print(f"get_action_for_training: self.exploration_rate: {self.exploration_rate}")
-        # raise
         return action
-        # return action, internal_exploration_rate
         
     #function to decrease the learning rate after every epoch. In this manner, the learning rate reaches 0, by 20,000 epochs
     def step_decay(self, epoch: int) -> float:
@@ -556,7 +474,6 @@ class DQNAgent:
         self.dQ_network.train(True)
         
         # sampled data are pytorch tensors on the device
-        # replay_batch = self.replay_buffer.sample(batch_size, total_steps=total_steps)
         replay_batch = self.replay_buffer.sample(batch_size)
         
         state_minibatch = replay_batch.observations
@@ -565,39 +482,23 @@ class DQNAgent:
         reward_minibatch = replay_batch.rewards
         done_minibatch = replay_batch.dones
         
-        # print(f"state_minibatch shape: {state_minibatch.shape}, dtype: {state_minibatch.dtype}")
-        # print(f"next_state_minibatch shape: {next_state_minibatch.shape}, dtype: {next_state_minibatch.dtype}")
-        # print(f"action_minibatch shape: {action_minibatch.shape}, dtype: {action_minibatch.dtype}")
-        # print(f"reward_minibatch shape: {reward_minibatch.shape}, dtype: {reward_minibatch.dtype}")
-        # print(f"done_minibatch shape: {done_minibatch.shape}, dtype: {done_minibatch.dtype}")
-        
         with torch.no_grad():
-            # print(f"next_state_minibatch shape: {next_state_minibatch.shape}, dtype: {next_state_minibatch.dtype}")
-            # next_q_values = self.target_dQ_network(next_state_minibatch).max(1)[0].unsqueeze(1)
             next_q_values = self.target_dQ_network(next_state_minibatch)
             next_q_values, _ = next_q_values.max(dim=1)
             next_q_values = next_q_values.reshape(-1, 1)
-            # print(f"next_q_values shape: {next_q_values.shape}, dtype: {next_q_values.dtype}")
             
             target_q_values = reward_minibatch + (1 - done_minibatch) * gamma * next_q_values
 
-        # current_q_values = self.dQ_network(state_minibatch).gather(1, action_minibatch.long())
         current_q_values = self.dQ_network(state_minibatch)
         current_q_values = torch.gather(current_q_values, dim=1, index=action_minibatch.long())
         
         loss = F.smooth_l1_loss(current_q_values, target_q_values)
-                
-        self.optimizer.zero_grad()   # zero the gradient buffers
+
+        # zero the gradient buffers
+        self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.dQ_network.parameters(), max_grad_norm)
-        # print(f"optimizer parameters before step:{self.optimizer.state_dict()}")
         self.optimizer.step()    # Does the update
-        # print(f"training step at total steps {total_steps},\n current q values: {current_q_values},\n target q values: {target_q_values},\n loss: {loss.item()}\n")
-        # raise Exception("stop here")
-
-        # new_lr = self.step_decay(episode)
-        # for param_group in self.optimizer.param_groups:
-        #     param_group['lr'] = new_lr
 
         return loss.item()  # Return the loss value for logging
         
@@ -608,9 +509,7 @@ class DQNAgent:
         if total_steps > 0 and total_steps % target_update_freq == 0:
             polyak_update(self.dQ_network.parameters(), self.target_dQ_network.parameters(), tau=1.0)
             polyak_update(self.batch_norm_stats, self.batch_norm_stats_target, 1.0)
-            # self.target_dQ_network.load_state_dict(self.dQ_network.state_dict())
             print(f"***** Target network updated at total steps {total_steps}")
-            # raise Exception("stop here for debug")
         
 def configure_serial(port, baudrate):
     """
@@ -651,7 +550,6 @@ def send_specific_data(ser):
         # send the first group of data
         data1 = [0x55, 0x01, 0x00, 0x00, 0x01]  # the first group of data
         ser.write(bytes(data1))  # send data
-        # print("The command to press the key: ", data1)
 
         # wait for 80ms
         time.sleep(0.05)
@@ -659,7 +557,6 @@ def send_specific_data(ser):
         # send the second group of data
         data2 = [0x55, 0x00, 0x00, 0x00, 0x00]  # the second group of data
         ser.write(bytes(data2))  # send data
-        # print("The command to release the key: ", data2)
         # wait for 50ms
         time.sleep(0.05)
     else:
@@ -693,7 +590,6 @@ def press_release_key(actuator_event, ser, stop_event):
         if actuator_event.is_set():
             try:
                 send_specific_data(ser)
-                # print("press and release")
             except BaseException as e:
                 send_release_data(ser)
                 print("release")
@@ -721,7 +617,6 @@ def send_data(ser, message):
     # make sure we're in Command mode
     # send ctrl-Q, then 1
     # cmd=bytes([17])
-        # print("inside send_data")
         ser.write(message.encode())
         while True:
             if ser.in_waiting > 0:
@@ -743,10 +638,8 @@ def send_up_command(ser):
             if ser.in_waiting > 0:
                 response = receive_data(ser)
                 if response:
-                    # print(f"Received: {response}")
                     pass
                 else:
-                    # print("No data received.")
                     pass
             else:
                 break
@@ -757,7 +650,6 @@ def send_ser_command(ser, action):
     
     match action:
         case 0:
-            # command = "a"
             return
         case 1:
             command = '{' + 'space' + '}'
@@ -767,17 +659,14 @@ def send_ser_command(ser, action):
             command = '{' + 'left' + '}'
 
     try:
-        # message = 'Send ' + '{' + command + '}' + '\n\r'
         message = 'Send ' + command + '\n'
         ser.write(message.encode())
         while True:
             if ser.in_waiting > 0:
                 response = receive_data(ser)
                 if response:
-                    # print(f"Received: {response}")
                     pass
                 else:
-                    # print("No data received.")
                     pass
             else:
                 break
@@ -824,9 +713,7 @@ class SerialThread(threading.Thread):
         try:
             while not stop_thread:
                 if self.receiver.in_waiting > 0:
-                    # data = receiver.read(ser.in_waiting)
                     data = self.receiver.read_until(b'}')
-                    # print("serial data:", data)
                     self.queue.put(data.decode('utf-8'))  # Push data to the queue
                     self.receiver.flush()
         except serial.SerialException as e:
@@ -844,7 +731,6 @@ class SerialThread(threading.Thread):
             print("SerialThread: Serial port is closed.")
 
 # Start the receiver thread
-# thread = threading.Thread(target=read_serial, daemon=True)
 thread = SerialThread(queue=data_queue, port=port, baudrate=baudrate)
 thread.start()
 
@@ -877,8 +763,6 @@ class CameraThread(threading.Thread):
     # def __init__(self):
         super().__init__(daemon=True)
         print("open camera")
-        # cap = cv2.VideoCapture('/dev/video0')
-        # print("after opening camera")
         self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)  # Open the default camera
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # Set the codec
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_WIDTH)  # Set the width
@@ -936,8 +820,6 @@ def main():
     line31, = ax3.plot([], [], 'o-', label='median') 
     line32, = ax3.plot([], [], 'x-', label='mean')
 
-    # ax.set_xlim(0, 10)
-    # ax.set_ylim(0, 100)
     ax1.legend() 
     ax1.grid(True)
 
@@ -1215,36 +1097,147 @@ def main():
                 time.sleep(2)
                 break
 
-    f = 0
+    file_num = 0
+
+    if args.model == 1:
+        
+        assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
+        
+        files = ['saved_models/model_updates_dqn_breakout_0.pth',
+                 'saved_models/model_updates_dqn_breakout_1000000.pth',
+                 'saved_models/model_updates_dqn_breakout_2000000.pth',
+                 'saved_models/model_updates_dqn_breakout_3000000.pth',
+                 'saved_models/model_updates_dqn_breakout_4000000.pth',
+                 'saved_models/model_updates_dqn_breakout_5000000.pth',
+                 'saved_models/model_updates_dqn_breakout_6000000.pth',
+                 'saved_models/model_updates_dqn_breakout_7000000.pth',
+                 'saved_models/model_updates_dqn_breakout_8000000.pth',
+                 'saved_models/model_updates_dqn_breakout_9000000.pth',
+                 'saved_models/model_updates_dqn_breakout_10000000.pth']
+        
+        # files = ['saved_models/model_updates_dqn_frostbite_1000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_2000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_3000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_4000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_5000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_6000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_7000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_8000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_9000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_10000000.pth']
+        
+        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
        
-    files = ['saved_models/code_061_model_updates_dqn_breakout_1000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_1000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_2000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_3000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_4000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_5000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_6000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_7000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_8000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_9000000.pth',
-             'saved_models/code_061_model_updates_dqn_breakout_10000000.pth']
 
-    labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000', 's1_000_000', 's2_000_000', 's3_000_000', 's4_000_000', 's5_000_000', 's6_000_000']
+    if args.model == 2:
+        env_name: EnvironmentName = args.env
+        algo = args.algo
+        folder = args.folder
 
+        try:
+            _, model_path, log_path = get_model_path(
+                args.exp_id,
+                folder,
+                algo,
+                env_name,
+                args.load_best,
+                args.load_checkpoint,
+                args.load_last_checkpoint,
+            )
+            print(f"***** model_path: {model_path}, log_path: {log_path}")
+        except (AssertionError, ValueError) as e:
+            # Special case for rl-trained agents
+            # auto-download from the hub
+            if "rl-trained-agents" not in folder:
+                raise e
+            else:
+                print("Pretrained model not found, trying to download it from sb3 Huggingface hub: https://huggingface.co/sb3")
+                # Auto-download
+                download_from_hub(
+                    algo=algo,
+                    env_name=env_name,
+                    exp_id=args.exp_id,
+                    folder=folder,
+                    organization="sb3",
+                    repo_name=None,
+                    force=False,
+                )
+                # Try again
+                _, model_path, log_path = get_model_path(
+                    args.exp_id,
+                    folder,
+                    algo,
+                    env_name,
+                    args.load_best,
+                    args.load_checkpoint,
+                    args.load_last_checkpoint,
+                )
+
+        # Off-policy algorithm only support one env for now
+        off_policy_algos = ["qrdqn", "dqn", "ddpg", "sac", "her", "td3", "tqc"]
+        
+        stats_path = os.path.join(log_path, env_name)
+        print(f"stats_path: {stats_path}")
+        hyperparams, maybe_stats_path = get_saved_hyperparams(stats_path, norm_reward=args.norm_reward, test_mode=True)
+        print(f"***** hyperparams: {hyperparams}")
+        
+        args_path = os.path.join(log_path, env_name, "args.yml")
+        if os.path.isfile(args_path):
+            with open(args_path) as f:
+                loaded_args = yaml.load(f, Loader=yaml.UnsafeLoader)
+        print(f"***** loaded_args: {loaded_args} ")
+        
+        kwargs = dict(seed=args.seed)
+        if algo in off_policy_algos:
+            # Dummy buffer size as we don't need memory to enjoy the trained agent
+            kwargs.update(dict(buffer_size=1))
+            # Hack due to breaking change in v1.6
+            # handle_timeout_termination cannot be at the same time
+            # with optimize_memory_usage
+            if "optimize_memory_usage" in hyperparams:
+                kwargs.update(optimize_memory_usage=False)
+                
+        print(f"***** kwargs: {kwargs}")
+        
+        # Check if we are running python 3.8+
+        # we need to patch saved model under python 3.6/3.7 to load them
+        newer_python_version = sys.version_info.major == 3 and sys.version_info.minor >= 8
+
+        custom_objects = {}
+        if newer_python_version or args.custom_objects:
+            custom_objects = {
+                "learning_rate": 0.0,
+                "lr_schedule": lambda _: 0.0,
+                "clip_range": lambda _: 0.0,
+                # load models with different obs bounds
+                # Note: doesn't work with channel last envs
+                # "observation_space": env.observation_space,
+            }
+            
+        print(f"***** custom_objects: {custom_objects}")
+
+        print(f"***** Loading the model with the following kwargs: {kwargs}")
+        model = ALGOS[algo].load(model_path, custom_objects=custom_objects, device=args.device, **kwargs)
+        
+        files = [model_path, model_path]
+        label = "_huggingface"
+        labels = [label +'_0', label +'_1']
+        print(f"files: {files}, labels: {labels}")
+        
     for file in files:
         
-        print("Using CNN model")
-        input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
-        agent = DQNAgent(env, input_shape=input_shape, seed=args.seed)
-        if args.test == 1:
-            if f != 0:
-                print("file name is ", file)
+        print("file name is ", file)
 
-                loaded_state_dict = torch.load(file)
-                print(loaded_state_dict.keys())
-                agent.dQ_network.load_state_dict(torch.load(file, map_location=torch.device('cpu'), weights_only=True))
-                print(f"load file {file}")
-                agent.dQ_network.eval()
+        input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
+        agent = DQNAgent(env, device=device, input_shape=input_shape, seed=args.seed)
+
+        if args.model == 1:
+            print("Using CNN model")
+            loaded_state_dict = torch.load(file)
+            print(loaded_state_dict.keys())
+            agent.dQ_network.load_state_dict(torch.load(file, map_location=torch.device('cpu'), weights_only=True))
+            print(f"load file {file}")
+            agent.dQ_network.eval()
 
         episodes = 0
         frames_num = 0
@@ -1258,7 +1251,6 @@ def main():
         obs_buffer[...] = 0
         a_t = 0
 
-        # print("start all episodes for the file: ", file)
         print(f"start all episodes for the current model: env.observation_space.shape: {env.observation_space.shape}, dtype: {stacked_o_t.dtype}")
 
         while episodes < 100:
@@ -1293,7 +1285,6 @@ def main():
                     if args.forpaper == 1:
                         # save file for analysis
                         if args.sensor == 1:
-                            # frame = cam.frame
                             start_time = time.time()
                             for i in range(1000):
                                 observe()
@@ -1336,20 +1327,21 @@ def main():
             while True:
 
                 s_t_tensor = torch.as_tensor(s_t, device=device)
-                # print(f"s_t_tensor shape: {s_t_tensor.shape}, dtype: {s_t_tensor.dtype}, device: {s_t_tensor.device}")
 
                 # Start of getting the action from the model or the player
-                if f == 0:
+                if file_num == 0:
                     a_t = env.action_space.sample()
                 else:
-                    a_t = agent.get_action(s_t_tensor)
+                    if args.model == 1:
+                        a_t = agent.get_action(s_t_tensor)
+                    elif args.model == 2:
+                        a_t = model.predict(s_t, deterministic=True)[0][0]
 
                 # duplicate the atari wrapper MaxAndSkipEnv functionality here
                 total_r_t = 0.0
                 terminated = False
                 truncated = False
                 if args.actuator == 1:
-                    # print("send actuator command")
                     send_ser_command(ser, a_t)
                 skip_time = time.time()
                 i = 0
@@ -1359,21 +1351,12 @@ def main():
                         while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
                             pass
                         break
-                    # print(f"In Loop Action {a_t}: i = {i}")
-                    # print(f"Start of all episodes, lives from {lives} --> {lives_after}, action fire")
                     # half of the key hold time for fire action, divided by skip to spread out the frames
                     time.sleep((SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * OFFSET)
                     stroke_time = time.time()
-                    # if args.sensor == 1:
-                    #     # _, frame = cap.read()
-                    #     # frame = cam.frame
-                    #     if not frame_queue.empty():
-                    #         frame = frame_queue.get()
-                    #     obs = np.array(frame)
                     observe()
                     reward = 0.0
                     if not data_queue.empty():
-                        # print(f"In Loop: ")
                         terminated, truncated, _, lives_after, reward = process_serial_data()
                     if inner_loop_break:
                         break
@@ -1396,7 +1379,6 @@ def main():
                 if inner_loop_break:
                     break
 
-                # print(f"playing, i has reached: {i}, skip: {skip}")
                 obs = obs_buffer.max(axis=0)
                 o_t = agent.preprocess(obs)
                 if 0 < lives_after < lives:
@@ -1418,7 +1400,6 @@ def main():
                     fps_time2 = time.time()
                     time_elapsed = fps_time2 - fps_time1
                     Calculated_FPS = frames_num / time_elapsed if time_elapsed > 0 else float('inf')
-                    # print(f"frames_num: {frames_num}, time_elapsed: {time_elapsed:.2f}, Calculated_FPS: {Calculated_FPS:.2f}")
                     frames_num = 0
                     fps_time1 = time.time()
 
@@ -1511,18 +1492,16 @@ def main():
             print("breaking out of the while loop for files")
             break
 
-        file_path = env_id + '-data-dqn-model-'+ labels[f] +'.npz'
-        file_path3 = env_id + '-hms-data-dqn-model-'+ labels[f] +'.npz'
+        file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
+        file_path3 = env_id + '-hms-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
         
-        if f == 0:
+        if file_num == 0:
             array_for_dict = scores
             array_for_hms = hms_scores
         else:
             array_for_dict = np.vstack((array_for_dict, scores))
             array_for_hms = np.vstack((array_for_hms, hms_scores))
         
-        f += 1
-
         np.savez(file_path, array=scores)
         print("*"*5 + " Test results were saved to ", file_path)
 
@@ -1538,15 +1517,15 @@ def main():
         average = np.mean(existing_array)
         
         print("Loaded scores min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
-        x_data.append(f)
+        x_data.append(file_num)
         y1_data.append(median)
         y2_data.append(average)
         plt.figure(fig1.number)
 
         line1.set_data(x_data, y1_data)
         line2.set_data(x_data, y2_data)
-        ax1.set_xlim(0, max(x_data) + 1)
-        ax1.set_ylim(0, max(max(y1_data), max(y2_data)) + 10)
+        ax1.set_xlim(-1, max(x_data) + 1)
+        ax1.set_ylim(-1, max(max(y1_data), max(y2_data)) + 10)
         plt.draw()
         if args.plot == 1:
             plt.pause(0.1)
@@ -1568,14 +1547,14 @@ def main():
         
         print("Loaded HMS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
         
-        x3_data.append(f)
+        x3_data.append(file_num)
         y31_data.append(median)
         y32_data.append(average)
 
         plt.figure(fig3.number)
         line31.set_data(x3_data, y31_data)
         line32.set_data(x3_data, y32_data)
-        ax3.set_xlim(0, max(x3_data) + 1)
+        ax3.set_xlim(-1, max(x3_data) + 1)
         ax3.set_ylim(-1, max(max(y31_data), max(y32_data)) + 10)
         plt.draw()
         if args.plot == 1:
@@ -1584,6 +1563,8 @@ def main():
 
         scores = np.array([])
         hms_scores = np.array([])
+        file_num += 1
+
     
     # Save the training progress plot after all test steps are completed
     fig1.savefig("training_progress_final.png", dpi=300, bbox_inches='tight')
@@ -1605,8 +1586,6 @@ def main():
 
     if args.sensor == 1:
         print("*"*5 + " Releasing camera resources...")
-        # cap.release()
-        # cam.join()
         cam.stop()
         cv2.destroyAllWindows()
         print("*"*5 + " Camera resources released.")
@@ -1614,8 +1593,6 @@ def main():
     if args.sensor == 1 and args.actuator != 0:
         env.close()
         stop_thread = True
-        # thread.join()
-        # cam.stop()
         thread.stop()
         print("*"*5 + " Thread is closed.")
 

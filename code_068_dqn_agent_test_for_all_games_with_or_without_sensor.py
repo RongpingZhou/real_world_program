@@ -889,6 +889,8 @@ def main():
 
     if args.model == 1:
         
+        assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
+        
         files = ['saved_models/model_updates_dqn_breakout_0.pth',
                  'saved_models/model_updates_dqn_breakout_1000000.pth',
                  'saved_models/model_updates_dqn_breakout_2000000.pth',
@@ -1263,8 +1265,6 @@ def main():
         
         print(f"file_num: {file_num}, labels: {labels}")
         print(f"label: {labels[file_num]}, scores: {scores}")
-        # file_path = env_id + '-data-dqn-model-'+ labels[file_num] +'.npz'
-        # file_path3 = env_id + '-hms-data-dqn-model-'+ labels[file_num] +'.npz'
         file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
         file_path3 = env_id + '-hms-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
         
