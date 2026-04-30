@@ -1297,9 +1297,10 @@ def main():
     while True:
         
         # Check if the thread crashed or was stopped
-        if not cam.is_alive():
-            print("Camera thread has stopped. Exiting...")
-            break
+        if args.sensor == 1:
+            if not cam.is_alive():
+                print("Camera thread has stopped. Exiting...")
+                break
 
         # state tensor
         s_t_tensor = torch.as_tensor(s_t, device=device)

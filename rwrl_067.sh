@@ -85,10 +85,10 @@
 
 # cd ..
 
-python train.py --algo dqn --env GopherNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
+python train.py --algo dqn --env GravitarNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
 
 python code_067_dqn_agent_for_all_games_with_or_without_sensor_clean_version.py \
-    --gym-id "GopherNoFrameskip-v4" \
+    --gym-id "GravitarNoFrameskip-v4" \
     --training 1 \
     --checkpoint-dir "./checkpoints" \
     --cuda True \
