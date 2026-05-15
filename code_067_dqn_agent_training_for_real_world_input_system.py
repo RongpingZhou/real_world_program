@@ -277,6 +277,31 @@ def display_arr(
     screen.fill((0, 0, 0))
     screen.blit(pyg_img, (width_offset, height_offset))
 
+class NatureCNN(nn.Module):
+    def __init__(self, in_channels: int = 4, features_dim: int = 512):
+        super().__init__()
+        
+        # 1. Feature extraction layers (CNN)
+        self.cnn = nn.Sequential(
+            nn.Conv2d(in_channels, 32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(start_dim=1, end_dim=-1)
+        )
+        
+        # 2. Fully connected projection layer
+        # Note: in_features=3136 corresponds to an input frame size of 84x84
+        self.linear = nn.Sequential(
+            nn.Linear(in_features=64 * 7 * 7, out_features=features_dim, bias=True),
+            nn.ReLU()
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear(self.cnn(x))
+
 class DQNModel(nn.Module):
 
     def __init__(self, input_shape: Tuple[int, ...], n_actions: int):
@@ -284,30 +309,19 @@ class DQNModel(nn.Module):
         self.input_shape = input_shape
         self.n_actions = n_actions
 
-        self.cnn = nn.Sequential(
-            nn.Conv2d(self.input_shape[0], 32, kernel_size=8, stride=4, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
-            nn.Flatten(),
-        )
-        self.linear = nn.Sequential(
-            nn.Linear(64 * 7 * 7, 512), 
-            nn.ReLU(),
-        )
+        self.features_extractor = NatureCNN(in_channels=self.input_shape[0], features_dim=512)
+
         self.q_net = nn.Sequential(
             nn.Linear(512, self.n_actions),
         )
-
+        
     def layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
         torch.nn.init.orthogonal_(layer.weight, std)
         torch.nn.init.constant_(layer.bias, bias_const)
         return layer
     
     def forward(self, x):
-        return self.q_net(self.linear(self.cnn(x.float() / 255.0)))
+        return self.q_net(self.features_extractor.linear(self.features_extractor.cnn(x.float() / 255.0)))
 
 class DQNAgent:
 
@@ -1205,6 +1219,139 @@ def main():
             observe()
             noop_reset_action(msg_prefix="Terminal reset during noop sequence: ")
 
+    def capture_video_no_obs():
+        # nonlocal obs
+        nonlocal frame
+        if args.sensor == 1:
+            try:
+                frame = frame_queue.get(timeout=1.0)
+            except queue.Empty:
+                print("No frame available within 1s ...")
+            # obs = frame.copy()
+
+    def observe_no_obs():
+        render_and_display()
+        capture_video_no_obs()
+
+    def action_no_obs():
+        """
+        Execute action with frame skipping and max pooling.
+
+        """
+        # nonlocal obs
+        nonlocal obs_buffer
+        nonlocal episode_reset_action
+        nonlocal skip
+        nonlocal score
+        nonlocal steps
+        nonlocal frames_num
+        nonlocal terminated
+        nonlocal truncated
+        nonlocal total_reward
+        nonlocal info
+        internal_obs = None
+        total_reward = 0.0
+        terminated = False
+        truncated = False
+        
+        for i in range(skip):
+            internal_obs, reward, terminated, truncated, info = env.step(episode_reset_action)
+            observe()
+            score += reward
+            steps += 1
+            frames_num += 1
+            if i == skip - 2:
+                obs_buffer[0] = internal_obs
+            if i == skip - 1:
+                obs_buffer[1] = internal_obs
+            total_reward += float(reward)
+            if terminated or truncated:
+                break
+        internal_obs = obs_buffer.max(axis=0)
+
+    def noop_reset_action_no_obs():
+        """Run random noops after env has already been reset. Handle mid-noop terminal resets.
+
+        Caller must call env.reset() and observe() before this function.
+
+        """
+        # nonlocal obs
+        nonlocal score
+        nonlocal steps
+        nonlocal frames_num
+        nonlocal terminated
+        nonlocal truncated
+        nonlocal total_steps
+        nonlocal lives
+        nonlocal lives_after
+        nonlocal info
+
+        score = 0
+        steps = 0
+        frames_num = 0
+        noops = env.unwrapped.np_random.integers(1, NOOP_MAX + 1)
+        assert noops > 0, "noops should be > 0"
+        internal_obs = np.zeros(0)
+        info = {}
+        for _ in range(noops):
+            internal_obs, reward, terminated, truncated, info = env.step(0)
+            observe_no_obs()
+            score += reward
+            steps += 1
+            frames_num += 1
+            if terminated or truncated:
+                direct_env_reset()
+
+    def direct_env_reset_no_obs():
+        # nonlocal obs
+        nonlocal score
+        nonlocal steps
+        nonlocal frames_num
+        nonlocal terminated
+        nonlocal truncated
+        nonlocal info
+
+        _, info = env.reset(seed=None)
+        observe_no_obs()
+        terminated = False
+        truncated = False
+        score = 0
+        steps = 0
+        frames_num = 0
+
+    def fire_reset_action():
+        nonlocal obs
+        nonlocal score
+        nonlocal steps
+        nonlocal frames_num
+        nonlocal lives
+        nonlocal lives_after
+        nonlocal has_lives
+        nonlocal terminated
+        nonlocal truncated
+        nonlocal episode_reset_action
+
+        action_not_in_the_loop()
+
+        lives_after = env.unwrapped.ale.lives()
+        print(f"reset_action: Lives: {lives} -> {lives_after}, terminated: {terminated}, truncated: {truncated}")
+        livesm1 = False
+        if 0 < lives_after < lives and has_lives:
+            livesm1 = True
+            if terminated or truncated:
+                livesm1 = False
+        lives = lives_after
+        print(f"reset_action: livesm1: {livesm1}, terminated: {terminated}, truncated: {truncated}")
+
+        if livesm1:
+            episode_reset_action = 0
+            action_no_obs()
+        if terminated or truncated:
+            print(f"reset_action: terminated: {terminated}, truncated: {truncated} Episode ended during reset action, resetting environment")
+            env.reset(seed=None)
+            observe_no_obs()
+            noop_reset_action_no_obs()
+
     # pause_moment = False
     # --- Initial noop reset ---
     # FireResetEnv reset start
@@ -1221,11 +1368,13 @@ def main():
 
     if has_fire:
         episode_reset_action = 1
-        reset_action()
+        # reset_action()
+        fire_reset_action()
         lives = env.unwrapped.ale.lives()
         
         episode_reset_action = 2
-        reset_action()
+        # reset_action()
+        fire_reset_action()
         lives = env.unwrapped.ale.lives()
     # FireResetEnv reset end
     
@@ -1445,11 +1594,13 @@ def main():
 
             if has_fire:
                 episode_reset_action = 1
-                reset_action()
+                # reset_action()
+                fire_reset_action()
                 lives = lives_after = env.unwrapped.ale.lives()
                 
                 episode_reset_action = 2
-                reset_action()
+                # reset_action()
+                fire_reset_action()
                 lives = lives_after = env.unwrapped.ale.lives()
             # FireResetEnv reset end
 
