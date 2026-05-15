@@ -1227,7 +1227,6 @@ def main():
                 frame = frame_queue.get(timeout=1.0)
             except queue.Empty:
                 print("No frame available within 1s ...")
-            # obs = frame.copy()
 
     def observe_no_obs():
         render_and_display()
@@ -1238,7 +1237,6 @@ def main():
         Execute action with frame skipping and max pooling.
 
         """
-        # nonlocal obs
         nonlocal obs_buffer
         nonlocal episode_reset_action
         nonlocal skip
@@ -1269,13 +1267,28 @@ def main():
                 break
         internal_obs = obs_buffer.max(axis=0)
 
+    def direct_env_reset_no_obs():
+        nonlocal score
+        nonlocal steps
+        nonlocal frames_num
+        nonlocal terminated
+        nonlocal truncated
+        nonlocal info
+
+        _, info = env.reset(seed=None)
+        observe_no_obs()
+        terminated = False
+        truncated = False
+        score = 0
+        steps = 0
+        frames_num = 0
+
     def noop_reset_action_no_obs():
         """Run random noops after env has already been reset. Handle mid-noop terminal resets.
 
         Caller must call env.reset() and observe() before this function.
 
         """
-        # nonlocal obs
         nonlocal score
         nonlocal steps
         nonlocal frames_num
@@ -1291,33 +1304,15 @@ def main():
         frames_num = 0
         noops = env.unwrapped.np_random.integers(1, NOOP_MAX + 1)
         assert noops > 0, "noops should be > 0"
-        internal_obs = np.zeros(0)
         info = {}
         for _ in range(noops):
-            internal_obs, reward, terminated, truncated, info = env.step(0)
+            _, reward, terminated, truncated, info = env.step(0)
             observe_no_obs()
             score += reward
             steps += 1
             frames_num += 1
             if terminated or truncated:
-                direct_env_reset()
-
-    def direct_env_reset_no_obs():
-        # nonlocal obs
-        nonlocal score
-        nonlocal steps
-        nonlocal frames_num
-        nonlocal terminated
-        nonlocal truncated
-        nonlocal info
-
-        _, info = env.reset(seed=None)
-        observe_no_obs()
-        terminated = False
-        truncated = False
-        score = 0
-        steps = 0
-        frames_num = 0
+                direct_env_reset_no_obs()
 
     def fire_reset_action():
         nonlocal obs
@@ -1334,20 +1329,17 @@ def main():
         action_not_in_the_loop()
 
         lives_after = env.unwrapped.ale.lives()
-        print(f"reset_action: Lives: {lives} -> {lives_after}, terminated: {terminated}, truncated: {truncated}")
         livesm1 = False
         if 0 < lives_after < lives and has_lives:
             livesm1 = True
             if terminated or truncated:
                 livesm1 = False
         lives = lives_after
-        print(f"reset_action: livesm1: {livesm1}, terminated: {terminated}, truncated: {truncated}")
 
         if livesm1:
             episode_reset_action = 0
             action_no_obs()
         if terminated or truncated:
-            print(f"reset_action: terminated: {terminated}, truncated: {truncated} Episode ended during reset action, resetting environment")
             env.reset(seed=None)
             observe_no_obs()
             noop_reset_action_no_obs()
