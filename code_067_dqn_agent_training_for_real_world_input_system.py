@@ -190,6 +190,8 @@ VIDEO_WIDTH = 640
 VIDEO_HEIGHT = 480
 VIDEO_FPS = 120
 
+SB3_FIRE_RESET = True
+
 inner_loop_break = False
 
 class MissingKeysToAction(Exception):
@@ -1360,13 +1362,17 @@ def main():
 
     if has_fire:
         episode_reset_action = 1
-        # reset_action()
-        fire_reset_action()
+        if SB3_FIRE_RESET:
+            fire_reset_action()
+        else:
+            reset_action()
         lives = env.unwrapped.ale.lives()
         
         episode_reset_action = 2
-        # reset_action()
-        fire_reset_action()
+        if SB3_FIRE_RESET:
+            fire_reset_action()
+        else:
+            reset_action()
         lives = env.unwrapped.ale.lives()
     # FireResetEnv reset end
     
@@ -1586,13 +1592,17 @@ def main():
 
             if has_fire:
                 episode_reset_action = 1
-                # reset_action()
-                fire_reset_action()
+                if SB3_FIRE_RESET:
+                    fire_reset_action()
+                else:
+                    reset_action()
                 lives = lives_after = env.unwrapped.ale.lives()
                 
                 episode_reset_action = 2
-                # reset_action()
-                fire_reset_action()
+                if SB3_FIRE_RESET:
+                    fire_reset_action()
+                else:
+                    reset_action()
                 lives = lives_after = env.unwrapped.ale.lives()
             # FireResetEnv reset end
 
