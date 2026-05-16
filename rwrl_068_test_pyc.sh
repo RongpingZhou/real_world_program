@@ -55,19 +55,20 @@
 # YarsRevengeNoFrameskip-v4
 # ZaxxonNoFrameskip-v4
 
-python code_068_dqn_agent_test_for_all_games_with_or_without_sensor.cpython-310.pyc \
-    --gym-id "AmidarNoFrameskip-v4" \
+python code_068_dqn_agent_test_for_real_world_input_system.cpython-310.pyc \
+    --gym-id "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
-    --model 4 \
-    --sensor 0 \
+    --model 1 \
+    --sensor 1 \
     --play 0 \
     --display 1 \
     --training 0 \
     --test 1 \
-    --cuda True \
+    --n-episodes 100 \
+    --cuda False \
     --bptime 0 \
     --fps 120 \
     --zoom 1.5 \
-    --seed 42 \
+    --seed 37 \
     --plot 1 \
-    --crop 0
+    --crop 1

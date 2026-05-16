@@ -109,6 +109,8 @@ def parse_args():
         help="RL Algorithm")
     parser.add_argument("-n", "--n-timesteps", default=1000, type=int, 
         help="number of timesteps")
+    parser.add_argument("--n-episodes", default=1, type=int, 
+        help="number of episodes for evaluation")
     parser.add_argument("--num-threads", default=-1, type=int, 
         help="Number of threads for PyTorch (-1 to use default)")
     parser.add_argument("--n-envs", default=1, type=int, 
@@ -709,7 +711,6 @@ def main():
     total_reward = 0.0
     obs = np.zeros(0)
             
-
     inner_loop_break = False
 
     EPISODE = 0
@@ -1035,7 +1036,7 @@ def main():
         lives_after = 0
         
         # while episodes < 100:
-        while episodes < 3:
+        while episodes < args.n_episodes:
             
             score = 0
             steps = 0
