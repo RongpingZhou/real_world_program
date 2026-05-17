@@ -1,3 +1,19 @@
+# ALGOS: dict[str, type[BaseAlgorithm]] = {
+#     "a2c": A2C,
+#     "ddpg": DDPG,
+#     "dqn": DQN,
+#     "ppo": PPO,
+#     "sac": SAC,
+#     "td3": TD3,
+#     # SB3 Contrib,
+#     "ars": ARS,
+#     "crossq": CrossQ,
+#     "qrdqn": QRDQN,
+#     "tqc": TQC,
+#     "trpo": TRPO,
+#     "ppo_lstm": RecurrentPPO,
+# }
+
 # AlienNoFrameskip-v4
 # AmidarNoFrameskip-v4
 # AssaultNoFrameskip-v4
@@ -9,6 +25,7 @@
 # BeamRiderNoFrameskip-v4
 # BerzerkNoFrameskip-v4
 # BowlingNoFrameskip-v4
+# BoxingNoFrameskip-v4
 # BoxingNoFrameskip-v4
 # BreakoutNoFrameskip-v4
 # CentipedeNoFrameskip-v4
@@ -55,21 +72,18 @@
 # YarsRevengeNoFrameskip-v4
 # ZaxxonNoFrameskip-v4
 
-python code_068_dqn_agent_test_for_all_games_with_or_without_sensor.py \
+python code_066_dqn_agent_test_for_real_world_system_at_60fps.py \
     --gym-id "BreakoutNoFrameskip-v4" \
     --env "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
-    --model 2 \
-    --sensor 0 \
-    --play 0 \
-    --display 1 \
+    --n-episodes 100 \
+    --model 1 \
     --training 0 \
-    --algo dqn \
     --test 1 \
-    --cuda True \
-    --bptime 0 \
-    --fps 200 \
-    --zoom 1.5 \
-    --seed 42 \
+    --debug 0 \
+    --cuda False \
+    --display 1 \
+    --fps 60 \
+    --seed 37 \
     --plot 1 \
-    --crop 0
+    --crop 1

@@ -72,7 +72,7 @@
 # YarsRevengeNoFrameskip-v4
 # ZaxxonNoFrameskip-v4
 
-python code_065_dqn_agent_for_60fps_all_games_with_sensor_actuator.py \
+python code_065_dqn_agent_for_real_world_system_at_60fps.py \
     --gym-id "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
     --checkpoint-dir "./checkpoints" \
