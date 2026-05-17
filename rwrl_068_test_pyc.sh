@@ -66,7 +66,6 @@ python code_068_dqn_agent_test_for_real_world_input_system.cpython-310.pyc \
     --test 1 \
     --n-episodes 100 \
     --cuda False \
-    --bptime 0 \
     --fps 120 \
     --zoom 1.5 \
     --seed 37 \
