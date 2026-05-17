@@ -823,12 +823,13 @@ def main():
     env_id = get_env_id(args.gym_id)
     print(f"env spec: {env.spec}")
     print(f"env metadata: {env.metadata}")
-    env.metadata["render_fps"] = args.fps  # Set FPS to 30
+    if args.display == 1:
+        env.metadata["render_fps"] = args.fps
+        print(f"FPS: {args.fps}")
     print(f"env action space: {env.action_space}")
     print(f"env action space shape: {env.action_space.shape}")
     print(f"env observation space: {env.observation_space}")
     print(f"env observation space shape: {env.observation_space.shape}")
-    print(f"FPS: {args.fps}")
     print("env.unwrapped: ", env.unwrapped)
     print("env.unwrapped.ale: ", env.unwrapped.ale)
     has_lives = False

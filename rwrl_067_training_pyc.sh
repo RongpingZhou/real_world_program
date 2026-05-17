@@ -63,12 +63,9 @@
 python code_067_dqn_agent_training_for_real_world_input_system.cpython-310.pyc \
     --gym-id "BreakoutNoFrameskip-v4" \
     --checkpoint-dir "./checkpoints" \
-    --sensor 1 \
-    --display 1 \
+    --sensor 0 \
+    --display 0 \
     --training 1 \
     --test 0 \
     --cuda False \
-    --fps 120 \
-    --zoom 1.5 \
-    --seed 37 \
-    --crop 1
+    --seed 37
