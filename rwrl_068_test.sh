@@ -64,7 +64,7 @@ python code_068_dqn_agent_test_for_all_games_with_or_without_sensor.py \
     --display 1 \
     --training 0 \
     --test 1 \
-    --cuda True \
+    --cuda False \
     --bptime 0 \
     --fps 200 \
     --zoom 1.5 \

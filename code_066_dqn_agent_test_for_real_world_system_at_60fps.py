@@ -251,38 +251,51 @@ VIDEO_FPS = 120
 
 inner_loop_break = False
 
+class NatureCNN(nn.Module):
+    def __init__(self, in_channels: int = 4, features_dim: int = 512):
+        super().__init__()
+        
+        # 1. Feature extraction layers (CNN)
+        self.cnn = nn.Sequential(
+            nn.Conv2d(in_channels, 32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(start_dim=1, end_dim=-1)
+        )
+        
+        # 2. Fully connected projection layer
+        # Note: in_features=3136 corresponds to an input frame size of 84x84
+        self.linear = nn.Sequential(
+            nn.Linear(in_features=64 * 7 * 7, out_features=features_dim, bias=True),
+            nn.ReLU()
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear(self.cnn(x))
+
 class DQNModel(nn.Module):
 
     def __init__(self, input_shape: Tuple[int, ...], n_actions: int):
         super(DQNModel, self).__init__()
         self.input_shape = input_shape
         self.n_actions = n_actions
-        
-        self.cnn = nn.Sequential(
-            nn.Conv2d(self.input_shape[0], 32, kernel_size=8, stride=4, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
-            nn.Flatten(),
-        )
-        self.linear = nn.Sequential(
-            nn.Linear(64 * 7 * 7, 512), 
-            nn.ReLU(),
-        )
+
+        self.features_extractor = NatureCNN(in_channels=self.input_shape[0], features_dim=512)
+
         self.q_net = nn.Sequential(
             nn.Linear(512, self.n_actions),
         )
-        # print(f"DQNModel architecture: {self.network}")
-
+        
     def layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
         torch.nn.init.orthogonal_(layer.weight, std)
         torch.nn.init.constant_(layer.bias, bias_const)
         return layer
     
     def forward(self, x):
-        return self.q_net(self.linear(self.cnn(x.float() / 255.0)))
+        return self.q_net(self.features_extractor.linear(self.features_extractor.cnn(x.float() / 255.0)))
 
 class DQNAgent:
 
