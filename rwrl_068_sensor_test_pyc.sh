@@ -59,14 +59,15 @@ python code_068_dqn_agent_test_for_real_world_input_system.cpython-310.pyc \
     --gym-id "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
     --model 1 \
-    --sensor 0 \
+    --sensor 1 \
     --play 0 \
     --display 1 \
     --training 0 \
     --test 1 \
     --n-episodes 100 \
     --cuda False \
-    --fps 300 \
+    --fps 120 \
     --zoom 1.5 \
     --seed 37 \
-    --plot 1
+    --plot 1 \
+    --crop 1
