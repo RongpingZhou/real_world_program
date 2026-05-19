@@ -190,7 +190,8 @@ VIDEO_WIDTH = 640
 VIDEO_HEIGHT = 480
 VIDEO_FPS = 120
 
-SB3_FIRE_RESET = True
+# SB3_FIRE_RESET = True
+SB3_FIRE_RESET = False
 
 inner_loop_break = False
 
