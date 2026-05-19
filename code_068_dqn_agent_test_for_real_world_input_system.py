@@ -794,11 +794,11 @@ def main():
 
         obs, info = env.reset(seed=None)
         observe()
-        terminated = False
-        truncated = False
-        score = 0
-        steps = 0
-        frames_num = 0
+        # terminated = False
+        # truncated = False
+        # score = 0
+        # steps = 0
+        # frames_num = 0
 
     def noop_reset_action(msg_prefix=""):
         """Run random noops after env has already been reset. Handle mid-noop terminal resets.
@@ -1192,22 +1192,27 @@ def main():
                     info: dict = {}
                     episode_reset_action = 0
                     action_not_in_the_loop()
+                    lives = lives_after = env.unwrapped.ale.lives()
 
                     if terminated or truncated:
                         episode_end = True
-
-                    lives = lives_after = env.unwrapped.ale.lives()
                     # EpisodicLifeEnv reset end
-
-                    if has_fire:
-                        episode_reset_action = 1
-                        reset_action()
-                        lives = lives_after = env.unwrapped.ale.lives()
                         
-                        episode_reset_action = 2
-                        reset_action()
-                        lives = lives_after = env.unwrapped.ale.lives()
-                    # FireResetEnv reset end
+                    if not episode_end:
+                        if has_fire:
+                            episode_reset_action = 1
+                            reset_action()
+                            lives = lives_after = env.unwrapped.ale.lives()
+
+                            if terminated or truncated:
+                                episode_end = True
+                            
+                            if not episode_end:
+
+                                episode_reset_action = 2
+                                reset_action()
+                                lives = lives_after = env.unwrapped.ale.lives()
+                            # FireResetEnv reset end
 
                     lives = lives_after
                 
@@ -1217,7 +1222,7 @@ def main():
 
                     EPISODE += 1
 
-                elif episode_end == True:
+                if episode_end == True:
                     terminated = False
                     truncated = False
 
