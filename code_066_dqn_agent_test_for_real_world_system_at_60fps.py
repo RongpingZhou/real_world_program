@@ -1102,35 +1102,6 @@ def main():
     file_num = 0
 
     if args.model == 1:
-        
-        assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
-        
-        files = ['saved_models/model_updates_dqn_breakout_0.pth',
-                 'saved_models/model_updates_dqn_breakout_1000000.pth',
-                 'saved_models/model_updates_dqn_breakout_2000000.pth',
-                 'saved_models/model_updates_dqn_breakout_3000000.pth',
-                 'saved_models/model_updates_dqn_breakout_4000000.pth',
-                 'saved_models/model_updates_dqn_breakout_5000000.pth',
-                 'saved_models/model_updates_dqn_breakout_6000000.pth',
-                 'saved_models/model_updates_dqn_breakout_7000000.pth',
-                 'saved_models/model_updates_dqn_breakout_8000000.pth',
-                 'saved_models/model_updates_dqn_breakout_9000000.pth',
-                 'saved_models/model_updates_dqn_breakout_10000000.pth']
-        
-        # files = ['saved_models/model_updates_dqn_frostbite_1000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_2000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_3000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_4000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_5000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_6000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_7000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_8000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_9000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_10000000.pth']
-        
-        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
-       
-    if args.model == 2:
         env_name: EnvironmentName = args.env
         algo = args.algo
         folder = args.folder
@@ -1225,6 +1196,35 @@ def main():
         labels = [label +'_0', label +'_1']
         print(f"files: {files}, labels: {labels}")
 
+    if args.model == 2:
+        
+        assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
+        
+        files = ['saved_models/model_updates_dqn_breakout_0.pth',
+                 'saved_models/model_updates_dqn_breakout_1000000.pth',
+                 'saved_models/model_updates_dqn_breakout_2000000.pth',
+                 'saved_models/model_updates_dqn_breakout_3000000.pth',
+                 'saved_models/model_updates_dqn_breakout_4000000.pth',
+                 'saved_models/model_updates_dqn_breakout_5000000.pth',
+                 'saved_models/model_updates_dqn_breakout_6000000.pth',
+                 'saved_models/model_updates_dqn_breakout_7000000.pth',
+                 'saved_models/model_updates_dqn_breakout_8000000.pth',
+                 'saved_models/model_updates_dqn_breakout_9000000.pth',
+                 'saved_models/model_updates_dqn_breakout_10000000.pth']
+        
+        # files = ['saved_models/model_updates_dqn_frostbite_1000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_2000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_3000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_4000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_5000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_6000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_7000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_8000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_9000000.pth',
+        #         'saved_models/model_updates_dqn_frostbite_10000000.pth']
+        
+        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
+       
     if args.model == 3:
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
@@ -1243,7 +1243,6 @@ def main():
         
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
 
-        
     for file in files:
         
         print("file name is ", file)
@@ -1251,7 +1250,7 @@ def main():
         input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
         agent = DQNAgent(env, device=device, input_shape=input_shape, seed=args.seed)
 
-        if args.model == 1:
+        if args.model != 1:
             print("Using CNN model")
             loaded_state_dict = torch.load(file)
             print(loaded_state_dict.keys())
@@ -1346,9 +1345,9 @@ def main():
                     a_t = env.action_space.sample()
                 else:
                     if args.model == 1:
-                        a_t = agent.get_action(s_t_tensor)
-                    elif args.model == 2:
                         a_t = model.predict(s_t, deterministic=True)[0][0]
+                    elif args.model != 1:
+                        a_t = agent.get_action(s_t_tensor)
 
                 # duplicate the atari wrapper MaxAndSkipEnv functionality here
                 total_r_t = 0.0
