@@ -1252,7 +1252,7 @@ def main():
 
         if args.model != 1:
             print("Using CNN model")
-            loaded_state_dict = torch.load(file)
+            loaded_state_dict = torch.load(file, map_location=torch.device('cpu'), weights_only=True)
             print(loaded_state_dict.keys())
             agent.dQ_network.load_state_dict(torch.load(file, map_location=torch.device('cpu'), weights_only=True))
             print(f"load file {file}")

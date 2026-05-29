@@ -81,5 +81,4 @@ python code_065_dqn_agent_for_real_world_system_at_60fps.py \
     --cuda False \
     --fps 60 \
     --seed 37 \
-    --plot 0 \
     --crop 1
