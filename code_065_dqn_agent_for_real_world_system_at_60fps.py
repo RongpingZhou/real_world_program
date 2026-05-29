@@ -8,6 +8,8 @@
 # human player won't wait for the key released, so the below wait time is removed
 # NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
 
+# New code
+
 import time
 import numpy as np
 import statistics
@@ -1701,7 +1703,7 @@ def main():
             )
             
         if total_steps % TEST_STEP_SIZE == 0:
-            torch.save(agent.dQ_network.state_dict(), "saved_models/code_061_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+            torch.save(agent.dQ_network.state_dict(), "saved_models/code_065_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
         
         if total_steps > MAX_TEST_STEPS and done == True:
             terminated = False

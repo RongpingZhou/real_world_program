@@ -55,47 +55,15 @@
 # YarsRevengeNoFrameskip-v4
 # ZaxxonNoFrameskip-v4
 
-python train.py --algo dqn --env StarGunnerNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
-
 python code_067_dqn_agent_training_for_real_world_input_system.py \
-    --gym-id "StarGunnerNoFrameskip-v4" \
-    --training 1 \
+    --gym-id "BreakoutNoFrameskip-v4" \
     --checkpoint-dir "./checkpoints" \
-    --cuda True \
-    --seed 37
-
-cd checkpoints/
-
-rm -rf *.pkl
-
-cd ..
-
-python train.py --algo dqn --env TennisNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
-
-python code_067_dqn_agent_training_for_real_world_input_system.py \
-    --gym-id "TennisNoFrameskip-v4" \
+    --sensor 1 \
+    --display 1 \
     --training 1 \
-    --checkpoint-dir "./checkpoints" \
-    --cuda True \
-    --seed 37
-
-cd checkpoints/
-
-rm -rf *.pkl
-
-cd ..
-
-python train.py --algo dqn --env TimePilotNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
-
-python code_067_dqn_agent_training_for_real_world_input_system.py \
-    --gym-id "TimePilotNoFrameskip-v4" \
-    --training 1 \
-    --checkpoint-dir "./checkpoints" \
-    --cuda True \
-    --seed 37
-
-cd checkpoints/
-
-rm -rf *.pkl
-
-cd ..
+    --test 0 \
+    --cuda False \
+    --fps 120 \
+    --zoom 1.5 \
+    --seed 37 \
+    --crop 1
