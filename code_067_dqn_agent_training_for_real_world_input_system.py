@@ -190,6 +190,13 @@ VIDEO_WIDTH = 640
 VIDEO_HEIGHT = 480
 VIDEO_FPS = 120
 
+#95
+REAL_WORLD_INPUT_HEIGHT_TOP = 90
+#415
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = 410
+REAL_WORLD_INPUT_WIDTH_LEFT = 190
+REAL_WORLD_INPUT_WIDTH_RIGHT = 435
+
 # SB3_FIRE_RESET = True
 SB3_FIRE_RESET = False
 
@@ -408,7 +415,7 @@ class DQNAgent:
         
     def preprocess(self, image: np.ndarray) -> np.ndarray:
         if args.crop == 1:
-            image = image[95:415, 190:435]
+            image = image[REAL_WORLD_INPUT_HEIGHT_TOP:REAL_WORLD_INPUT_HEIGHT_BOTTOM, REAL_WORLD_INPUT_WIDTH_LEFT:REAL_WORLD_INPUT_WIDTH_RIGHT]
         if args.display == 1:
             if args.sensor == 0:
                 cv2.imshow('Image', image[:, :, [2, 1, 0]])
