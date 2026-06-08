@@ -1026,7 +1026,6 @@ def main():
         #         'saved_models/model_updates_dqn_frostbite_10000000.pth']
         
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
-
         
     for file in files:
         
@@ -1035,7 +1034,7 @@ def main():
         input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
         agent = DQNAgent(env, device=device, input_shape=input_shape, seed=args.seed)
 
-        if args.model == 1:
+        if args.model != 1:
             print("Using CNN model")
             if args.test == 1:
                 loaded_state_dict = torch.load(file)
