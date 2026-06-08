@@ -55,10 +55,10 @@
 # YarsRevengeNoFrameskip-v4
 # ZaxxonNoFrameskip-v4
 
-python train.py --algo dqn --env TutankhamNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
+python train.py --algo dqn --env YarsRevengeNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
 
 python code_067_dqn_agent_training_for_real_world_input_system.py \
-    --gym-id "TutankhamNoFrameskip-v4" \
+    --gym-id "YarsRevengeNoFrameskip-v4" \
     --training 1 \
     --checkpoint-dir "./checkpoints" \
     --cuda True \
@@ -70,10 +70,10 @@ rm -rf *.pkl
 
 cd ..
 
-python train.py --algo dqn --env UpNDownNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
+python train.py --algo dqn --env ZaxxonNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
 
 python code_067_dqn_agent_training_for_real_world_input_system.py \
-    --gym-id "UpNDownNoFrameskip-v4" \
+    --gym-id "ZaxxonNoFrameskip-v4" \
     --training 1 \
     --checkpoint-dir "./checkpoints" \
     --cuda True \
@@ -85,17 +85,17 @@ rm -rf *.pkl
 
 cd ..
 
-python train.py --algo dqn --env VentureNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
+# python train.py --algo dqn --env VentureNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
 
-python code_067_dqn_agent_training_for_real_world_input_system.py \
-    --gym-id "VentureNoFrameskip-v4" \
-    --training 1 \
-    --checkpoint-dir "./checkpoints" \
-    --cuda True \
-    --seed 37
+# python code_067_dqn_agent_training_for_real_world_input_system.py \
+#     --gym-id "VentureNoFrameskip-v4" \
+#     --training 1 \
+#     --checkpoint-dir "./checkpoints" \
+#     --cuda True \
+#     --seed 37
 
-cd checkpoints/
+# cd checkpoints/
 
-rm -rf *.pkl
+# rm -rf *.pkl
 
-cd ..
+# cd ..
