@@ -900,7 +900,7 @@ def main():
     score = 0
     reward = 0.0
     frames_num = 0
-    hms_scores = np.array([])
+    hns_scores = np.array([])
     scores = np.array([])
     steps = 0
     done = True
@@ -1436,8 +1436,8 @@ def main():
                         print(f"***** FPS: {Calculated_FPS:>8.2f} Episodes: {episodes:>5d} total_steps: {total_steps:>8d} score: {score:>5.2f} topscore: {topscore:>5.2f}")
 
                         scores = np.append(scores, score)
-                        hms = get_human_normalized_score(env_id, score)
-                        hms_scores = np.append(hms_scores, hms)
+                        hns = get_human_normalized_score(env_id, score)
+                        hns_scores = np.append(hns_scores, hns)
 
                         score = 0
                         steps = 0
@@ -1504,14 +1504,14 @@ def main():
             break
 
         file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
-        file_path3 = env_id + '-hms-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
+        file_path3 = env_id + '-hns-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
         
         if file_num == 0:
             array_for_dict = scores
-            array_for_hms = hms_scores
+            array_for_hns = hns_scores
         else:
             array_for_dict = np.vstack((array_for_dict, scores))
-            array_for_hms = np.vstack((array_for_hms, hms_scores))
+            array_for_hns = np.vstack((array_for_hns, hns_scores))
         
         np.savez(file_path, array=scores)
         print("*"*5 + " Test results were saved to ", file_path)
@@ -1542,21 +1542,21 @@ def main():
             plt.pause(0.1)
             plt.show()
 
-        np.savez(file_path3, array=hms_scores)
-        print("*"*5 + " Test results (HMS) were saved to ", file_path3)
+        np.savez(file_path3, array=hns_scores)
+        print("*"*5 + " Test results (HNS) were saved to ", file_path3)
 
         # Load the existing data from the .npz file
         loaded_data = np.load(file_path3)
         
         # Retrieve the existing array and datetime
         existing_array = loaded_data['array']
-        print("Loaded HMS:", existing_array)
+        print("Loaded HNS:", existing_array)
         min_score = existing_array.min()
         max_score = existing_array.max()
         median = np.median(existing_array)        
         average = np.mean(existing_array)
         
-        print("Loaded HMS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
+        print("Loaded HNS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
         
         x3_data.append(file_num)
         y31_data.append(median)
@@ -1573,7 +1573,7 @@ def main():
             plt.show()
 
         scores = np.array([])
-        hms_scores = np.array([])
+        hns_scores = np.array([])
         file_num += 1
 
     # Save the training progress plot after all test steps are completed
