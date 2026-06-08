@@ -58,7 +58,7 @@
 python code_068_dqn_agent_test_for_all_games_with_or_without_sensor.py \
     --gym-id "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
-    --model 1 \
+    --model 2 \
     --sensor 0 \
     --play 0 \
     --display 1 \

@@ -614,7 +614,8 @@ def main():
             truncated = False
             action = 0
             rew = 0.0
-            obs, _ = env.reset(seed=args.seed)
+            # obs, _ = env.reset(seed=args.seed)
+            obs, _ = env.reset(seed=None)
 
             currentScore = 0.0
             print("Env reset current Score: " + str(currentScore))
