@@ -1129,9 +1129,9 @@ def main():
                     a_t = agent.env.action_space.sample()
                 else:
                     if args.model == 1:
-                        a_t = agent.get_action(s_t_tensor)
-                    elif args.model == 2:
                         a_t = model.predict(s_t, deterministic=True)[0][0]
+                    elif args.model == 2:
+                        a_t = agent.get_action(s_t_tensor)
 
                 # Start of taking action and getting the reward from the environment
                 total_reward = 0.0
