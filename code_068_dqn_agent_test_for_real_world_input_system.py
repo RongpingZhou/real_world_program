@@ -676,7 +676,10 @@ def main():
             (pygame.K_RIGHT,): 2,  # Move right
             (pygame.K_SPACE,): 1,  # Fire (release ball)
         }
-    # env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
+    env_id = get_env_id(args.gym_id)
+    print(f"env_id: {env_id}")
+    if env_id == "Breakout":
+        env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
     if "FIRE" in env.unwrapped.get_action_meanings():
         has_fire = True
         print("Environment has FIRE action, will use FireResetEnv wrapper")
@@ -684,7 +687,6 @@ def main():
     # if args.capture_video:
     #     env = gym.wrappers.RecordVideo(env, "videos", step_trigger=lambda step: step % 1000 == 0)
 
-    env_id = get_env_id(args.gym_id)
     print(f"env spec: {env.spec}")
     print(f"env metadata: {env.metadata}")
     env.metadata["render_fps"] = args.fps  # Set FPS to 30

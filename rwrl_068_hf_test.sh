@@ -55,7 +55,7 @@
 # YarsRevengeNoFrameskip-v4
 # ZaxxonNoFrameskip-v4
 
-python code_068_dqn_agent_test_for_all_games_with_or_without_sensor.py \
+python code_068_dqn_agent_test_for_real_world_input_system.py \
     --gym-id "BreakoutNoFrameskip-v4" \
     --env "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
