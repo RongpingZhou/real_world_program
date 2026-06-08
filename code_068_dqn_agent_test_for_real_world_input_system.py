@@ -678,7 +678,7 @@ def main():
         }
     env_id = get_env_id(args.gym_id)
     print(f"env_id: {env_id}")
-    if env_id == "Breakout":
+    if env_id == "breakout":
         env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
     if "FIRE" in env.unwrapped.get_action_meanings():
         has_fire = True
