@@ -696,7 +696,7 @@ def process_serial_data():
 
     # Retrieve data from the queue
     received_data = data_queue.get()
-    print(f"Received data from serial: {received_data}")
+    # print(f"Received data from serial: {received_data}")
     if '{STOP}' in received_data:
         time.sleep(1)
         stop_thread = True
@@ -1731,9 +1731,9 @@ def main():
     pygame.quit()
 
     print("end of Training")
-    if ser and ser.isOpen():
-        ser.close()
-        print("*"*5 + " Serial port is closed.")
+    # if ser and ser.isOpen():
+    #     ser.close()
+    #     print("*"*5 + " Serial port is closed.")
 
     time.sleep(0.5)
 

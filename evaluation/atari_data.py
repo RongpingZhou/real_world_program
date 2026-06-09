@@ -210,6 +210,8 @@ def get_env_id(game: str) -> str:
     case 'StarGunnerNoFrameskip-v4':
       return 'star_gunner'
     # no surround game with no frameskip
+    case 'ALE/Surround-v5':
+      return 'surround'
     case 'TennisNoFrameskip-v4':
       return 'tennis'
     case 'TimePilotNoFrameskip-v4':
