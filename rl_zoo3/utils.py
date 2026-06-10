@@ -509,7 +509,6 @@ def get_model_path(
         log_path = os.path.join(folder, algo, f"{env_name}_{exp_id}")
     else:
         log_path = os.path.join(folder, algo)
-    print(f"Looking for model in {log_path}")
 
     assert os.path.isdir(log_path), f"The {log_path} folder was not found"
 
