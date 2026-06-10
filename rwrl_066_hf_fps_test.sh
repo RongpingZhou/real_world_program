@@ -83,7 +83,7 @@ python code_066_dqn_agent_test_for_real_world_system_at_60fps.py \
     --training 0 \
     --test 1 \
     --debug 0 \
-    --n-episodes 1 \
+    --n-episodes 100 \
     --cuda False \
     --display 1 \
     --fps 60 \
