@@ -56,20 +56,21 @@
 # 56    YarsRevengeNoFrameskip-v4
 # 57    ZaxxonNoFrameskip-v4
 
-python train.py --algo dqn --env ALE/Surround-v5 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
+python train.py --algo dqn --env BreakoutNoFrameskip-v4 --seed 37 --n-timesteps 10000000 --tensorboard-log ./runs/
+# python train.py --algo dqn --env ALE/Surround-v5 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
 
-python code_067_dqn_agent_training_for_real_world_input_system.py \
-    --gym-id "ALE/Surround-v5" \
-    --training 1 \
-    --checkpoint-dir "./checkpoints" \
-    --cuda True \
-    --seed 37
+# python code_067_dqn_agent_training_for_real_world_input_system.py \
+#     --gym-id "ALE/Surround-v5" \
+#     --training 1 \
+#     --checkpoint-dir "./checkpoints" \
+#     --cuda True \
+#     --seed 37
 
-cd checkpoints/
+# cd checkpoints/
 
-rm -rf *.pkl
+# rm -rf *.pkl
 
-cd ..
+# cd ..
 
 # python train.py --algo dqn --env ZaxxonNoFrameskip-v4 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
 

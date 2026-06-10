@@ -920,6 +920,8 @@ def main():
         env_name: EnvironmentName = args.env
         algo = args.algo
         folder = args.folder
+        
+        print(f"***** Loading model for env: {env_name}, algo: {algo}, folder: {folder}")
 
         try:
             _, model_path, log_path = get_model_path(
@@ -969,6 +971,7 @@ def main():
         print(f"***** hyperparams: {hyperparams}")
         
         args_path = os.path.join(log_path, env_name, "args.yml")
+        print(f"args_path: {args_path}")
         if os.path.isfile(args_path):
             with open(args_path) as f:
                 loaded_args = yaml.load(f, Loader=yaml.UnsafeLoader)

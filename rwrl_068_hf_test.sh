@@ -59,6 +59,9 @@ python code_068_dqn_agent_test_for_real_world_input_system.py \
     --gym-id "BreakoutNoFrameskip-v4" \
     --env "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
+    --folder logs \
+    --exp-id 0 \
+    --load-best \
     --model 1 \
     --sensor 0 \
     --play 0 \
@@ -66,8 +69,8 @@ python code_068_dqn_agent_test_for_real_world_input_system.py \
     --training 0 \
     --algo dqn \
     --test 1 \
-    --n-episodes 100 \
-    --cuda True \
+    --n-episodes 1 \
+    --cuda False \
     --bptime 0 \
     --fps 1000 \
     --zoom 1.5 \
