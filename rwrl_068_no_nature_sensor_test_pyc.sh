@@ -55,25 +55,19 @@
 # YarsRevengeNoFrameskip-v4
 # ZaxxonNoFrameskip-v4
 
-python code_068_dqn_agent_test_for_real_world_input_system.py \
+python code_068_dqn_agent_no_nature_test_for_real_world_input_system.cpython-310.pyc \
     --gym-id "BreakoutNoFrameskip-v4" \
-    --env "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
-    --folder logs \
-    --exp-id 0 \
-    --load-best \
-    --model 1 \
-    --sensor 0 \
+    --model 3 \
+    --sensor 1 \
     --play 0 \
     --display 1 \
     --training 0 \
-    --algo dqn \
     --test 1 \
     --n-episodes 100 \
     --cuda False \
-    --bptime 0 \
-    --fps 1000 \
+    --fps 120 \
     --zoom 1.5 \
     --seed -1 \
     --plot 1 \
-    --crop 0
+    --crop 1

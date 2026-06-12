@@ -249,6 +249,16 @@ VIDEO_WIDTH = 640
 VIDEO_HEIGHT = 480
 VIDEO_FPS = 120
 
+# [105:425, 205:450] oringinal position for training
+# [100:420, 205:450] minor change for testing
+# REAL_WORLD_INPUT_HEIGHT_TOP = 105
+REAL_WORLD_INPUT_HEIGHT_TOP = 100
+#415
+# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = 420
+REAL_WORLD_INPUT_WIDTH_LEFT = 205
+REAL_WORLD_INPUT_WIDTH_RIGHT = 450
+
 inner_loop_break = False
 
 class NatureCNN(nn.Module):
@@ -386,11 +396,13 @@ class DQNAgent:
                 cv2.waitKey(1)
         
         if args.crop == 1:
-            image = image[105:425, 205:450]
+            # image = image[105:425, 205:450]
+            image = image[REAL_WORLD_INPUT_HEIGHT_TOP:REAL_WORLD_INPUT_HEIGHT_BOTTOM, REAL_WORLD_INPUT_WIDTH_LEFT:REAL_WORLD_INPUT_WIDTH_RIGHT]
 
             if args.forpaper == 1:
                 # save file for analysis
                 np.save("cropped_file.npy", image)
+                raise Exception("File saved for analysis, stop the code here")
                 # need to remove in the experiment
 
         if args.display == 1 and args.forpaper == 0:

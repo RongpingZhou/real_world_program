@@ -211,6 +211,15 @@ VIDEO_WIDTH = 640
 VIDEO_HEIGHT = 480
 VIDEO_FPS = 120
 
+# [105:425, 205:450]
+REAL_WORLD_INPUT_HEIGHT_TOP = 105
+# REAL_WORLD_INPUT_HEIGHT_TOP = 95
+#415
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425
+# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 415
+REAL_WORLD_INPUT_WIDTH_LEFT = 205
+REAL_WORLD_INPUT_WIDTH_RIGHT = 450
+
 inner_loop_break = False
 
 class NatureCNN(nn.Module):
@@ -339,7 +348,8 @@ class DQNAgent:
         
     def preprocess(self, image: np.ndarray) -> np.ndarray:
         if args.crop == 1:
-            image = image[105:425, 205:450]
+            # image = image[105:425, 205:450]
+            image = image[REAL_WORLD_INPUT_HEIGHT_TOP:REAL_WORLD_INPUT_HEIGHT_BOTTOM, REAL_WORLD_INPUT_WIDTH_LEFT:REAL_WORLD_INPUT_WIDTH_RIGHT]
         cv2.imshow('Image', image)
         # cv2.moveWindow('Image', 0, 800)
         cv2.waitKey(1)

@@ -2,20 +2,13 @@
 
 # docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
 
-# action 0 needs wait time while other keys have physical hold time which cannot be changed by software
-# human player won't wait for the key released, so the below wait time is removed
-# NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
-
 import time
 import numpy as np
-from collections import deque
 from typing import Callable, List, Optional, Tuple
-import hashlib
 
 import threading
 import queue
-import json
-import random
+import yaml
 
 import sys
 sys.path.append("domain/")
@@ -26,6 +19,7 @@ from evaluation.atari_data import get_human_normalized_score, get_env_id
 from mybuffer.replaybm import ReplayBuffer
 
 import pygame
+from pygame import Surface
 
 import tkinter as tk
 
@@ -66,23 +60,11 @@ gym.register_envs(ale_py)
 # gym.pprint_registry()
 
 from datetime import datetime
-import glob
-import re
-from pathlib import Path
-
-# Import TensorBoard utilities for handling log continuity
-try:
-    from tensorboard_utils import create_filtered_logdir_for_checkpoint, verify_tensorboard_continuity
-    TENSORBOARD_UTILS_AVAILABLE = True
-except ImportError:
-    TENSORBOARD_UTILS_AVAILABLE = False
-    print("Warning: tensorboard_utils not available. TensorBoard log filtering disabled.")
 
 import matplotlib
 import matplotlib.pyplot as plt
 
 from huggingface_sb3 import EnvironmentName
-import yaml
 
 def setup_matplotlib_backend():
     """Configure matplotlib backend based on environment"""
@@ -117,7 +99,6 @@ matplotlib_backend = setup_matplotlib_backend()
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
-
     parser.add_argument('--gym-id', type=str, default="BreakoutNoFrameskip-v4",
         help='the id of the gym environment')
     parser.add_argument("--env", type=EnvironmentName, default="BreakoutNoFrameskip-v4", 
@@ -166,26 +147,20 @@ def parse_args():
         help="how many steps to run in one episode in each environment")
     parser.add_argument("--model", type=int, default=4,
         help="model for the agent, 0 is random action, 1 is CNN, 2 is huggingface model, 3 is transformer, 4 is the standard CNN model")
-    parser.add_argument('--model-file', type=str, default=None,
-        help='the model file name for the agent to load')
-    parser.add_argument('--buffer-file', type=str, default=None,
-        help='the buffer file name for the agent to load replay buffer')
-    parser.add_argument('--checkpoint-file', type=str, default=None,
-        help='specific checkpoint file to resume from (if not specified, will find latest)')
-    parser.add_argument('--checkpoint-dir', type=str, default='checkpoints',
-        help='directory to save/load checkpoints')
-    parser.add_argument('--filter-tensorboard', type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
-        help='automatically filter TensorBoard logs when resuming from earlier checkpoint (default: True)')
+    parser.add_argument("--sensor", type=int, default=0,
+        help="use sensor or not, 0 is not using sensor, 1 is using sensor")
+    parser.add_argument("--play", type=int, default=0,
+        help="0 is not playing, 1 is playing")
     parser.add_argument("--training", type=int, default=0,
         help="0 is not training, 1 is training, 2 is transfer training")
     parser.add_argument("--test", type=int, default=0,
         help="0 is not testing, 1 is testing")
-    parser.add_argument("--debug", type=int, default=0,
-        help="0 is not debugging, 1 is debugging")
     parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, cuda will be enabled by default")
     parser.add_argument("--num-steps", type=int, default=5,
         help="how many steps to run in each environment per update")
+    parser.add_argument("--bptime", type=int, default=0,
+        help="use sensor or not, 0 is not showing back propagation time, 1 is showing time")
     parser.add_argument("--fps", type=int, default=300,
         help="frame per second for the environment")
     parser.add_argument("--zoom", type=float, default=1.0,
@@ -200,7 +175,6 @@ def parse_args():
         help="show plot during training, 0 is not showing, 1 is showing")
     parser.add_argument("--forpaper", type=int, default=0,
         help="collect data for paper writing, 0 is not collecting, 1 is collecting")
-
     args = parser.parse_args()
     
     return args
@@ -209,15 +183,16 @@ args = parse_args()
 print("args: ", args)
 print(vars(args))
 
-if args.display == 1 or args.plot == 1:
+if args.display == 1:
     root = tk.Tk()
     root.withdraw()  # Hide the root window
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     print(f"screen width: {screen_width}, screen height: {screen_height}")
 
-    window_x = 1200 
-    window_y = 80
+    # for lab computer setting
+    window_x = 50 
+    window_y = 862
     os.environ['SDL_VIDEO_WINDOW_POS'] = f"{window_x},{window_y}"
 
 NOOP_MAX = 30
@@ -241,15 +216,110 @@ IMAGE_CHANNELS = 4
 STACK_FRAMES = 4
 IMAGE_ROWS = 84
 IMAGE_COLS = 84
-SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.067 # elite typist speed
-print(f"SLIGHTLY_MORE_THAN_KEY_HOLD_TIME: {SLIGHTLY_MORE_THAN_KEY_HOLD_TIME} seconds")
-OFFSET = 0.2 # to capture the frame after the key has pressed for 0.2 * hold time, to make sure the frame has the effect of the key press
 
 VIDEO_WIDTH = 640
 VIDEO_HEIGHT = 480
 VIDEO_FPS = 120
 
+#95 original position for training
+#90 minor change
+REAL_WORLD_INPUT_HEIGHT_TOP = 90
+# REAL_WORLD_INPUT_HEIGHT_TOP = 95
+#415 original position for training
+#410 minor change
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = 410
+# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 415
+REAL_WORLD_INPUT_WIDTH_LEFT = 190
+REAL_WORLD_INPUT_WIDTH_RIGHT = 435
+
 inner_loop_break = False
+
+class MissingKeysToAction(Exception):
+    """Raised when the environment does not have a default ``keys_to_action`` mapping."""
+
+# from gymnasium.utils.play import play
+# from domain.play import play
+class PlayableGame:
+    """Wraps an environment allowing keyboard inputs to interact with the environment."""
+
+    def __init__(
+        self,
+        env: Env,
+        keys_to_action: dict[tuple[int, ...], int] | None = None,
+        zoom: float | None = None,
+    ):
+        """Wraps an environment with a dictionary of keyboard buttons to action and if to zoom in on the environment.
+
+        Args:
+            env: The environment to play
+            keys_to_action: The dictionary of keyboard tuples and action value
+            zoom: If to zoom in on the environment render
+        """
+        if env.render_mode not in {"rgb_array", "rgb_array_list"}:
+            raise ValueError(
+                "PlayableGame wrapper works only with rgb_array and rgb_array_list render modes, "
+                f"but your environment render_mode = {env.render_mode}."
+            )
+
+        self.env = env
+        self.relevant_keys = self._get_relevant_keys(keys_to_action)
+        # self.video_size is the size of the video that is being displayed.
+        # The window size may be larger, in that case we will add black bars
+        self.video_size = self._get_video_size(zoom)
+        self.screen = pygame.display.set_mode(self.video_size, pygame.RESIZABLE)
+        self.pressed_keys = []
+        self.running = True
+
+    def _get_relevant_keys(
+        self, keys_to_action: dict[tuple[int], int] | None = None
+    ) -> set:
+        if keys_to_action is None:
+            if self.env.has_wrapper_attr("get_keys_to_action"):
+                keys_to_action = self.env.get_wrapper_attr("get_keys_to_action")()
+            else:
+                assert self.env.spec is not None
+                raise MissingKeysToAction(
+                    f"{self.env.spec.id} does not have explicit key to action mapping, "
+                    "please specify one manually, `play(env, keys_to_action=...)`"
+                )
+        assert isinstance(keys_to_action, dict)
+        relevant_keys = set(sum((list(k) for k in keys_to_action.keys()), []))
+        return relevant_keys
+
+    def _get_video_size(self, zoom: float | None = None) -> tuple[int, int]:
+        rendered = self.env.render()
+        if isinstance(rendered, List):
+            rendered = rendered[-1]
+        assert rendered is not None and isinstance(rendered, np.ndarray)
+        video_size = (rendered.shape[1], rendered.shape[0])
+        print(f"video size: {video_size}")
+
+        if zoom is not None:
+            video_size = (int(video_size[0] * zoom), int(video_size[1] * zoom))
+
+        return video_size
+
+def display_arr(
+    screen: Surface, arr: np.ndarray, video_size: tuple[int, int], transpose: bool
+):
+    """Displays a numpy array on screen.
+
+    Args:
+        screen: The screen to show the array on
+        arr: The array to show
+        video_size: The video size of the screen
+        transpose: If to transpose the array on the screen
+    """
+    assert isinstance(arr, np.ndarray) and arr.dtype == np.uint8
+    pyg_img = pygame.surfarray.make_surface(arr.swapaxes(0, 1) if transpose else arr)
+    pyg_img = pygame.transform.scale(pyg_img, video_size)
+    
+    # We might have to add black bars if surface_size is larger than video_size
+    surface_size = screen.get_size()
+    width_offset = (surface_size[0] - video_size[0]) / 2
+    height_offset = (surface_size[1] - video_size[1]) / 2
+    screen.fill((0, 0, 0))
+    screen.blit(pyg_img, (width_offset, height_offset))
 
 class DQNModel(nn.Module):
 
@@ -307,6 +377,7 @@ class DQNModel(nn.Module):
     def forward(self, x):
         return self.q_net(self.linear(self.cnn(x.float() / 255.0)))
 
+
 class DQNAgent:
 
     def __init__(
@@ -318,9 +389,7 @@ class DQNAgent:
         seed: Optional[int] = None,
         exploartion_initial_epsilon: float = EXPLORATION_INITIAL_EPSILON,
         exploartion_final_epsilon: float = EXPLORATION_FINAL_EPSILON,
-        exploartion_fraction: float = EXPLORATION_FRACTION,
-        model_save_file: Optional[str] = None,
-        replay_buffer_file: Optional[str] = None
+        exploartion_fraction: float = EXPLORATION_FRACTION
     ):
 
         self.env = env
@@ -394,28 +463,27 @@ class DQNAgent:
                 cv2.imshow('Image', image)
                 # cv2.moveWindow('Image', 0, 800)
                 cv2.waitKey(1)
-        
-        if args.crop == 1:
-            image = image[105:425, 205:450]
 
+        if args.crop == 1:
+            # image = image[95:415, 190:435]
+            image = image[REAL_WORLD_INPUT_HEIGHT_TOP:REAL_WORLD_INPUT_HEIGHT_BOTTOM, REAL_WORLD_INPUT_WIDTH_LEFT:REAL_WORLD_INPUT_WIDTH_RIGHT]
             if args.forpaper == 1:
                 # save file for analysis
                 np.save("cropped_file.npy", image)
+                raise Exception("File saved for analysis, stop the code here")
                 # need to remove in the experiment
 
-        if args.display == 1 and args.forpaper == 0:
-            cv2.imshow('Image', image)
-            # cv2.moveWindow('Image', 0, 800)
+        if args.display == 1:
+            if args.sensor == 0:
+                cv2.imshow('Image', image[:, :, [2, 1, 0]])
+            else:
+                cv2.imshow('Image', image)
+            cv2.moveWindow('Image', 350, 0)
             cv2.waitKey(1)
 
-        # the code is copied from 
         image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         image = cv2.resize(image, (self.network_input_shape[1], self.network_input_shape[2]), interpolation=cv2.INTER_AREA)
 
-        if args.forpaper == 1:
-            # save file for analysis
-            np.save("preprocessed_file.npy", image)
-                
         return image
 
     def get_action(self, x: torch.Tensor) -> int:
@@ -444,7 +512,7 @@ class DQNAgent:
         :param total_timesteps:
         """
         self._current_progress_remaining = 1.0 - float(total_steps) / float(max_timesteps) if 1.0 - float(total_steps) / float(max_timesteps) > 0.0 else 0.0
-
+                
     def update_exploration_rate(self, 
                                 total_steps: int=0):
         
@@ -459,6 +527,10 @@ class DQNAgent:
         """
         Get an action for training based on epsilon-greedy policy.
         """
+        if not hasattr(self, 'action_call'):
+            self.action_call = 0
+        self.action_call += 1
+
         if total_steps < LEARNING_STARTS:
             action = self.env.action_space.sample()  # Random action before learning starts
         else:
@@ -487,10 +559,9 @@ class DQNAgent:
         """
         Perform a training step on the agent.
         """
-        
-        # Not enough samples in the replay buffer
+                
         if self.replay_buffer.size() < learning_starts:
-            return  0
+            return  0   # Not enough samples in the replay buffer
 
         self.dQ_network.train(True)
         
@@ -519,11 +590,9 @@ class DQNAgent:
         self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.dQ_network.parameters(), max_grad_norm)
-        # Does the update
-        self.optimizer.step()
+        self.optimizer.step()    # Does the update
 
-        # Return the loss value for logging
-        return loss.item()
+        return loss.item()  # Return the loss value for logging
         
     def update_target_network(self, 
                               target_update_freq: int = TARGET_UPDATE_INTERVAL,
@@ -533,307 +602,62 @@ class DQNAgent:
             polyak_update(self.dQ_network.parameters(), self.target_dQ_network.parameters(), tau=1.0)
             polyak_update(self.batch_norm_stats, self.batch_norm_stats_target, 1.0)
             print(f"***** Target network updated at total steps {total_steps}")
-        
-def configure_serial(port, baudrate):
-    """
-    configure serial port and open the port
-    
-    parameters:
-    port -- serial port number
-    baudrate
-    return:
-    ser -- configured serial port
-    """
-    ser = serial.Serial()
-    ser.port = port  # serial port
-    ser.baudrate = baudrate  # baud rate
-    ser.bytesize = serial.EIGHTBITS  # digital byte size
-    ser.parity = serial.PARITY_NONE  # parity bit
-    ser.stopbits = serial.STOPBITS_ONE  # stop bit
 
-    # open serial port
-    ser.open()
-    if ser.isOpen():
-        print("The serial port is enabled.")
-    else:
-        print("The serial port can't be enabled, please check the configuration of serial port!")
-        return None
+if args.sensor == 1:
+    frame_queue = queue.Queue(maxsize=1)
 
-    return ser
+    class CameraThread(threading.Thread):
+        def __init__(self, queue):
+            super().__init__(daemon=True)
+            print("open camera")
+            self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)  # Open the default camera
+            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # Set the codec
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_WIDTH)  # Set the width
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_HEIGHT)  # Set the height
+            self.cap.set(cv2.CAP_PROP_FPS, VIDEO_FPS)  # Set the FPS
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Set the buffer size to 1 to reduce latency
+            if not self.cap.isOpened():
+                print("Error: Could not open camera.")
+                quit()
+            actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+            print(f"Camera opened with FPS: {actual_fps}")
+            _, self.frame = self.cap.read()
+            if self.frame.ndim == 2:
+                print(f"Camera frame shape: {self.frame.shape}")
+                self.obs_format = (VIDEO_WIDTH, VIDEO_HEIGHT)
+            if self.frame.ndim == 3 and self.frame.shape[2] == 1: 
+                print(f"Camera frame shape: {self.frame.shape}")
+                self.obs_format = (VIDEO_WIDTH, VIDEO_HEIGHT)
+            if self.frame.ndim == 3 and self.frame.shape[2] == 3:
+                print(f"Camera frame shape: {self.frame.shape}")
+                self.obs_format = (VIDEO_HEIGHT, VIDEO_WIDTH, 3)
+            print(f"obs_format: {self.obs_format}")
+            self.running = True
+            self.queue = queue
 
-# Physical keyboard clicker
-def send_specific_data(ser):
-    """
-    send hex number to serial port。
-    
-    parameters:
-    ser -- serial port
-    """
-    if ser and ser.isOpen():
-        # send the first group of data
-        data1 = [0x55, 0x01, 0x00, 0x00, 0x01]  # the first group of data
-        ser.write(bytes(data1))  # send data
+        def run(self):
+            while self.running:
+                ret, frame = self.cap.read()
+                if not ret:
+                    continue
 
-        # wait for 80ms
-        time.sleep(0.05)
+                # If queue is full, remove old frame
+                if self.queue.full():
+                    try:
+                        self.queue.get_nowait()
+                    except:
+                        pass
 
-        # send the second group of data
-        data2 = [0x55, 0x00, 0x00, 0x00, 0x00]  # the second group of data
-        ser.write(bytes(data2))  # send data
-        # wait for 50ms
-        time.sleep(0.05)
-    else:
-        print("The serial port is disabled, the motor to press the key is not working!")
+                # Put newest frame
+                self.queue.put(frame)
 
-def send_release_data(ser):
-    """
-    send specific data to the serial port
-    
-    parameter:
-    ser -- serial port
-    """
-    if ser and ser.isOpen():
+        def stop(self):
+            self.running = False
+            self.cap.release()
 
-        # wait for 50ms
-        time.sleep(0.05)
+    cam = CameraThread(frame_queue)
+    cam.start()
 
-        # send the data
-        data2 = [0x55, 0x00, 0x00, 0x00, 0x00]  
-        ser.write(bytes(data2))  
-        print("The command to release the key: ", data2)
-        # wait for 50ms
-        time.sleep(0.05)
-
-    else:
-        print("The serial port is disabled, the actuator is not working!")
-
-def press_release_key(actuator_event, ser, stop_event):
-    while not stop_event.is_set():
-        actuator_event.wait() # Wait for the event to be set
-        if actuator_event.is_set():
-            try:
-                send_specific_data(ser)
-                # print("press and release")
-            except BaseException as e:
-                send_release_data(ser)
-                print("release")
-                actuator_event.clear()
-            actuator_event.clear()
-
-def press_key_pygame(ser):
-    try:
-        send_specific_data(ser)
-        # print("press and release")
-    except BaseException as e:
-        send_release_data(ser)
-        print("release")
-# End of Physical keyboard clicker
-
-# Hardware emulated keyboard
-def receive_data(ser):
-    if ser.in_waiting > 0:
-        response = ser.readline().decode().strip()
-        return response
-    return None
-
-def send_data(ser, message):
-    try:
-        # make sure we're in Command mode
-        # send ctrl-Q, then 1
-        # cmd=bytes([17])
-        ser.write(message.encode())
-        while True:
-            if ser.in_waiting > 0:
-                response = receive_data(ser)
-                if response:
-                    print(f"Received: {response}")
-                else:
-                    print("No data received.")
-            else:
-                break
-    except serial.SerialException as e:
-        print(f"Error: {e}")    
-
-def send_up_command(ser):
-    try:
-        message = "Send {up}\n\r"
-        ser.write(message.encode())
-        while True:
-            if ser.in_waiting > 0:
-                response = receive_data(ser)
-                if response:
-                    pass
-                else:
-                    pass
-            else:
-                break
-    except serial.SerialException as e:
-        print(f"Error: {e}") 
-
-def send_ser_command(ser, action):
-    
-    match action:
-        case 0:
-            return
-        case 1:
-            command = '{' + 'space' + '}'
-        case 2:
-            command = '{' + 'right' + '}'
-        case 3:
-            command = '{' + 'left' + '}'
-
-    try:
-        message = 'Send ' + command + '\n'
-        ser.write(message.encode())
-        while True:
-            if ser.in_waiting > 0:
-                response = receive_data(ser)
-                if response:
-                    pass
-                else:
-                    pass
-            else:
-                break
-    except serial.SerialException as e:
-        print(f"Error: {e}")
-
-# End of Hardware emulated keyboard functions
-
-dictionary = {}
-dictionary["score"] = 0
-
-# Create a queue for communication
-data_queue = queue.Queue()
-stop_thread = False
-start_play = False
-
-port = '/dev/ttyUSB1'  # serial port number based on the system setting
-baudrate = 115200  # baud rate for serial communication
-
-class SerialThread(threading.Thread):
-
-    def __init__(self, queue, port, baudrate):
-        super().__init__(daemon=True)
-        self.queue = queue
-        self.receiver = configure_serial(port, baudrate)
-        
-    def run(self):
-
-        global stop_thread
-        global start_play
-
-        if start_play == False:
-            print("waiting handshake in thread...\n\r")
-            while True:
-                if self.receiver.in_waiting > 0:
-                    signal = self.receiver.read(self.receiver.in_waiting)
-                    if signal == b'READY\n':
-                        print("Handshake signal received.")
-                        self.receiver.write(b'ACK\n')
-                        start_play = True
-                        break
-
-        self.receiver.flush()
-        try:
-            while not stop_thread:
-                if self.receiver.in_waiting > 0:
-                    data = self.receiver.read_until(b'}')
-                    self.queue.put(data.decode('utf-8'))  # Push data to the queue
-                    self.receiver.flush()
-        except serial.SerialException as e:
-            print(f"Error: {e}")
-        finally:
-            if self.receiver and self.receiver.isOpen():
-                self.receiver.close()
-                print("Thread: Serial port is closed.")
-                
-    def stop(self):
-        global stop_thread
-        stop_thread = True
-        # if self.receiver and self.receiver.isOpen():
-        #     self.receiver.close()
-        #     print("SerialThread: Serial port is closed.")
-
-# Start the receiver thread
-thread = SerialThread(queue=data_queue, port=port, baudrate=baudrate)
-thread.start()
-
-def process_serial_data():
-    global dictionary
-    global stop_thread
-    global inner_loop_break
-
-    # Retrieve data from the queue
-    received_data = data_queue.get()
-    if args.debug == 1:
-         print(f"Received data from serial: {received_data}")
-    if '{STOP}' in received_data:
-        time.sleep(1)
-        stop_thread = True
-        thread.join()
-        thread.stop()
-        inner_loop_break = True
-        return None, None, None, None, None
-    dictionary = json.loads(received_data)
-    terminated = dictionary['terminated']
-    truncated = dictionary['truncated']
-    lives = lives_after = dictionary['lives']
-    # Reward R_t+1
-    reward = dictionary['reward']
-    return terminated, truncated, lives, lives_after, reward
-
-frame_queue = queue.Queue(maxsize=1)
-
-class CameraThread(threading.Thread):
-    def __init__(self, queue):
-        super().__init__(daemon=True)
-        print("open camera")
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)  # Open the default camera
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # Set the codec
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_WIDTH)  # Set the width
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_HEIGHT)  # Set the height
-        self.cap.set(cv2.CAP_PROP_FPS, VIDEO_FPS)  # Set the FPS
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Set the buffer size to 1 to reduce latency
-        if not self.cap.isOpened():
-            print("Error: Could not open camera.")
-            quit()
-        actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-        print(f"Camera opened with FPS: {actual_fps}")
-        _, self.frame = self.cap.read()
-        if self.frame.ndim == 2:
-            print(f"Camera frame shape: {self.frame.shape}")
-            self.obs_format = (VIDEO_WIDTH, VIDEO_HEIGHT)
-        if self.frame.ndim == 3 and self.frame.shape[2] == 1: 
-            print(f"Camera frame shape: {self.frame.shape}")
-            self.obs_format = (VIDEO_WIDTH, VIDEO_HEIGHT)
-        if self.frame.ndim == 3 and self.frame.shape[2] == 3:
-            print(f"Camera frame shape: {self.frame.shape}")
-            self.obs_format = (VIDEO_HEIGHT, VIDEO_WIDTH, 3)
-        print(f"obs_format: {self.obs_format}")
-        self.running = True
-        self.queue = queue
-
-    def run(self):
-        while self.running:
-            ret, frame = self.cap.read()
-            if not ret:
-                continue
-
-            try:
-                self.queue.get_nowait()
-            except queue.Empty:
-                pass
-
-            # Put newest frame
-            self.queue.put(frame)
-
-    def stop(self):
-        self.running = False
-        self.cap.release()
-
-cam = CameraThread(frame_queue)
-cam.start()
-        
 def main():
 
     plt.ion()  # Turn on interactive mode
@@ -868,185 +692,211 @@ def main():
         device = torch.device("cpu")
     print(f"Using device: {device}")
 
-    # Handle seed: if None or negative, generate random seed
-    if args.seed is None or args.seed < 0:
+    if args.seed < 0:
         # Seed but with a random one
-        if args.seed is not None:
-            print(f"Negative seed provided: {args.seed}, generating random seed")
-        else:
-            print(f"No seed provided, generating random seed")
+        print(f"before args.seed: {args.seed}")
         args.seed = np.random.randint(2**32 - 1, dtype="int64").item()  # type: ignore[attr-defined]
-        print(f"Using random seed: {args.seed}")
+        print(f"after args.seed: {args.seed}")
 
     set_random_seed(args.seed)
     
-    global stop_thread
+    has_fire = False
+    env = gym.make(args.gym_id, render_mode="rgb_array")
+    
+    if args.sensor == 0:
+        obs_format = env.observation_space.shape
 
-    # serial port number based on the system setting
-    port = '/dev/ttyUSB0'
-    # baud rate for hardware emulated keyboard
-    baudrate = 57600
+    if args.sensor == 1:
+        obs_format = cam.obs_format
+        
+    # Define key-to-action mapping
+    if args.display == 1:
+        keys_to_action = {
+            (pygame.K_LEFT,): 3,  # Move left
+            (pygame.K_RIGHT,): 2,  # Move right
+            (pygame.K_SPACE,): 1,  # Fire (release ball)
+        }
+    env_id = get_env_id(args.gym_id)
+    print(f"env_id: {env_id}")
+    if env_id == "breakout":
+        env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
+    if "FIRE" in env.unwrapped.get_action_meanings():
+        has_fire = True
+        print("Environment has FIRE action, will use FireResetEnv wrapper")
+    # env = gym.wrappers.RecordEpisodeStatistics(env)
+    # if args.capture_video:
+    #     env = gym.wrappers.RecordVideo(env, "videos", step_trigger=lambda step: step % 1000 == 0)
 
-    # serial port configuration
-    ser = configure_serial(port, baudrate)
-    time.sleep(0.5)
+    print(f"env spec: {env.spec}")
+    print(f"env metadata: {env.metadata}")
+    env.metadata["render_fps"] = args.fps  # Set FPS to 30
+    print(f"env action space: {env.action_space}")
+    print(f"env action space shape: {env.action_space.shape}")
+    print(f"env observation space: {env.observation_space}")
+    print(f"env observation space shape: {env.observation_space.shape}")
+    print(f"FPS: {args.fps}")
+    print("env.unwrapped: ", env.unwrapped)
+    print("env.unwrapped.ale: ", env.unwrapped.ale)
+    has_lives = False
+    lives = 0
+    if hasattr(env.unwrapped, 'ale') and hasattr(env.unwrapped.ale, 'lives'):
+        has_lives = True
+        print("env.unwrapped.ale.lives: ", env.unwrapped.ale.lives())
+        lives = env.unwrapped.ale.lives()
 
-    # make sure we're in Command mode
-    # send ctrl-Q, then 1
-    message = '\x11'
-    send_data(ser, message)
-    time.sleep(0.1)
-    message = "1"
-    send_data(ser, message)
-    time.sleep(0.1)
-    print("end of sending data")
+    if args.display == 1:
+        key_code_to_action = {}
+        for key_combination, action in keys_to_action.items():
+            key_code = tuple(
+                sorted(ord(key) if isinstance(key, str) else key for key in key_combination)
+            )
+            key_code_to_action[key_code] = action
 
-    total_steps = 0
-    topscore = 0
+        print(f"key_code_to_action: {key_code_to_action}")
+    
+    if args.display == 1:
+        env.reset(seed=args.seed)
+        game = PlayableGame(env, key_code_to_action, zoom=args.zoom)
+        clock = pygame.time.Clock()
+        clock.tick(args.fps)
+            
+    # Initialize training variables
+    # index 0 = no operation
+    episode_reset_action = 0
+    total_reward = 0.0
+    obs = np.zeros(0)
+            
+    inner_loop_break = False
+
+    EPISODE = 0
     skip = FRAMES_SKIP
     print(f"skip: {skip}")
     a_t = 0
-    episode_reset_action = 0
+    topscore = 0
     score = 0
-    reward = 0.0
-    frames_num = 0
     hns_scores = np.array([])
     scores = np.array([])
     steps = 0
-    done = True
-    pdone = False
-    terminated = True
-    truncated = False
-    done = terminated or truncated
-    episodes = 0
+    total_steps = 0
+
     frames_num = 0
     fps_time1 = time.time()
-    info = {}
-    lives = 0
-    lives_after = 0
-
-    print("Using CNN model")
-    env = gym.make(args.gym_id, render_mode="rgb_array")
-    env_id = get_env_id(args.gym_id)
-    input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
-
-    obs_format = cam.obs_format
-        
-    frame = np.zeros(obs_format, dtype=env.observation_space.dtype)
+    info: dict = {}
+    reset_info: dict = {}
     o_t = np.zeros((IMAGE_ROWS, IMAGE_COLS), dtype=env.observation_space.dtype)
     stacked_o_t = np.zeros((1, STACK_FRAMES, IMAGE_ROWS, IMAGE_COLS), dtype=env.observation_space.dtype)
+    print(f"Step {total_steps}: env.observation_space.shape: {env.observation_space.shape}, dtype: {stacked_o_t.dtype}")
     terminal_stacked_o_t = np.zeros((1, STACK_FRAMES, IMAGE_ROWS, IMAGE_COLS), dtype=env.observation_space.dtype)
-    obs = np.zeros(obs_format, dtype=env.observation_space.dtype)
-    obs_buffer = np.zeros((2, *obs_format), dtype=env.observation_space.dtype)
+    if args.sensor == 0:
+        obs_buffer = np.zeros((2, *env.observation_space.shape), dtype=env.observation_space.dtype)
+    else:
+        obs_buffer = np.zeros((2, *obs_format), dtype=env.observation_space.dtype)
+        frame = np.zeros(obs_format, dtype=env.observation_space.dtype)
+
+    print(f"*****env spec: {env.spec}")
+
+    # --- Helper functions for init and training loop ---
+
+    def render_and_display():
+        nonlocal obs
+        if args.display == 1:
+            if obs is not None:
+                rendered = env.render()
+                if isinstance(rendered, List):
+                    rendered = rendered[-1]
+                assert rendered is not None and isinstance(rendered, np.ndarray)
+                display_arr(
+                    game.screen, rendered, transpose=True, video_size=game.video_size
+                )
+            pygame.display.flip()
+            clock.tick(args.fps)
+
+    def capture_video():
+        nonlocal obs
+        nonlocal frame
+        if args.sensor == 1:
+            try:
+                frame = frame_queue.get(timeout=1.0)
+            except queue.Empty:
+                print("No frame available within 1s ...")
+            obs = frame.copy()
 
     def observe():
+        render_and_display()
+        capture_video()
+
+    def direct_env_reset():
         nonlocal obs
-        nonlocal frame
-        try:
-            frame = frame_queue.get(timeout=1.0)
-        except queue.Empty:
-            print("No frame available within 1s ...")
-        obs = frame.copy()
-
-    def wait_environment_ready():
-        nonlocal score
-        nonlocal steps
-        nonlocal reward
-        nonlocal frames_num
-        nonlocal lives
-        nonlocal lives_after
-        nonlocal terminated
-        nonlocal truncated
-        nonlocal obs
-        nonlocal frame
-
-        if truncated or terminated:
-            while terminated or truncated:
-                if not data_queue.empty():
-                    # print(f"Real Env reset: Lives: {lives}, no action")
-                    terminated, truncated, _, lives_after, reward = process_serial_data()
-            observe()
-            score = 0
-            steps = 0
-            frames_num = 0
-    
-    def noops_reset():
-
         nonlocal score
         nonlocal steps
         nonlocal frames_num
-        nonlocal reward
-        nonlocal lives
-        nonlocal lives_after
         nonlocal terminated
         nonlocal truncated
-        nonlocal obs
-        nonlocal frame
-        nonlocal obs_buffer
+        nonlocal info
 
-        noops_time = time.time()
+        obs, info = env.reset(seed=None)
+        observe()
+        # terminated = False
+        # truncated = False
+        # score = 0
+        # steps = 0
+        # frames_num = 0
+
+    def noop_reset_action(msg_prefix=""):
+        """Run random noops after env has already been reset. Handle mid-noop terminal resets.
+
+        Caller must call env.reset() and observe() before this function.
+
+        """
+        nonlocal obs
+        nonlocal score
+        nonlocal steps
+        nonlocal frames_num
+        nonlocal terminated
+        nonlocal truncated
+        nonlocal total_steps
+        nonlocal lives
+        nonlocal lives_after
+        nonlocal info
+
         score = 0
         steps = 0
         frames_num = 0
-        reward = 0.0
-        # print(f"Start of an episodes, action no-op, lives from {lives} --> {lives_after}")
         noops = env.unwrapped.np_random.integers(1, NOOP_MAX + 1)
         assert noops > 0, "noops should be > 0"
-        i = 0
-        NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
-        while (time.time() - noops_time) < NO_OP_TIME:
-            if i//skip == i/skip:
-                send_ser_command(ser, 0)
-                # print(f"Noop reset: i = {i} Noop is {noops} and send command 0")
-            time.sleep(SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip * OFFSET)
-            stroke_time = time.time()
+        print(f"{msg_prefix}Lives: {lives} -> {env.unwrapped.ale.lives()}，Step {total_steps}: No-ops after episode end: {noops}")
+        for _ in range(noops):
+            obs, reward, terminated, truncated, info = env.step(0)
             observe()
-            if not data_queue.empty():
-                # print(f"Noop reset: Lives: {lives}, action no-op")
-                terminated, truncated, _, lives_after, reward = process_serial_data()
             score += reward
             steps += 1
             frames_num += 1
-            i += 1
-            if truncated or terminated:
-                break
-            while (time.time() - stroke_time) < (SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * (1-OFFSET):
-                pass
-        # action 0 needs wait time while other keys have physical hold time which cannot be changed by software
-        while (time.time() - noops_time) < NO_OP_TIME:
-            pass
-        wait_environment_ready()
+            if terminated or truncated:
+                direct_env_reset()
 
     def action_not_in_the_loop():
+        """
+        Execute action with frame skipping and max pooling.
+
+        """
         nonlocal obs
+        nonlocal obs_buffer
         nonlocal episode_reset_action
+        nonlocal skip
         nonlocal score
         nonlocal steps
-        nonlocal frame
         nonlocal frames_num
-        nonlocal reward
-        nonlocal lives
-        nonlocal lives_after
         nonlocal terminated
         nonlocal truncated
+        nonlocal total_reward
+        nonlocal info
+        total_reward = 0.0
+        terminated = False
+        truncated = False
         
-        send_ser_command(ser, episode_reset_action)
-        skip_time = time.time()
-        i = 0
-        while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-            if i >= skip:
-                # print(f"Action {episode_reset_action}: Action 0, i: {i} reached skip: {skip}, breaking out of loop")
-                while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                    pass
-                break
-            # half of the key hold time for fire action, divided by skip to spread out the frames               
-            time.sleep((SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * OFFSET)
-            stroke_time = time.time()
+        for i in range(skip):
+            obs, reward, terminated, truncated, info = env.step(episode_reset_action)
             observe()
-            reward = 0.0
-            if not data_queue.empty():
-                print(f"Action {episode_reset_action}: Action 0: Lives: {lives}")
-                terminated, truncated, _, lives_after, reward = process_serial_data()
             score += reward
             steps += 1
             frames_num += 1
@@ -1054,67 +904,51 @@ def main():
                 obs_buffer[0] = obs
             if i == skip - 1:
                 obs_buffer[1] = obs
-            i += 1
+            total_reward += float(reward)
             if terminated or truncated:
                 break
-            while (time.time() - stroke_time) < (SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * (1-OFFSET):
-                pass
         obs = obs_buffer.max(axis=0)
-        # action 0 needs wait time while other keys have physical hold time which cannot be changed by software
-        if episode_reset_action == 0:
-            while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                pass
         
     def reset_action():
-
+        nonlocal obs
         nonlocal score
         nonlocal steps
         nonlocal frames_num
-        nonlocal reward
         nonlocal lives
         nonlocal lives_after
+        nonlocal has_lives
         nonlocal terminated
         nonlocal truncated
         nonlocal episode_reset_action
-        nonlocal obs_buffer
 
-        action_not_in_the_loop()
+        print(f"Reset Action: {episode_reset_action}, lives: {lives} -> {lives_after}")
         
+        action_not_in_the_loop()
+
+        lives_after = env.unwrapped.ale.lives()
         livesm1 = False
-        if 0 < lives_after < lives:
+        if 0 < lives_after < lives and has_lives:
             livesm1 = True
             if terminated or truncated:
                 livesm1 = False
-        # print(f"Reset Action: {episode_reset_action}, lives: {lives} -> {lives_after}")
         lives = lives_after
-        # human player won't wait for the key released, so the below wait time is removed
-        # while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-        #     pass            
+
         if livesm1:
             episode_reset_action = 0
             action_not_in_the_loop()
         if terminated or truncated:
-            noops_reset()
-
-    cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
-    cv2.moveWindow('Image', 0, 600)
-
-    global start_play
-    print("waiting for handshake signal\n\r")
-    while True:
-        if start_play == False:
-            pass
-        else:
-            print("start to play game")
-            time.sleep(2)
-            break
-
+            obs, _ = env.reset(seed=None)
+            observe()
+            noop_reset_action(msg_prefix="Terminal reset during noop sequence: ")
+        
     file_num = 0
 
     if args.model == 1:
         env_name: EnvironmentName = args.env
         algo = args.algo
         folder = args.folder
+        
+        print(f"***** Loading model for env: {env_name}, algo: {algo}, folder: {folder}")
 
         try:
             _, model_path, log_path = get_model_path(
@@ -1164,6 +998,7 @@ def main():
         print(f"***** hyperparams: {hyperparams}")
         
         args_path = os.path.join(log_path, env_name, "args.yml")
+        print(f"args_path: {args_path}")
         if os.path.isfile(args_path):
             with open(args_path) as f:
                 loaded_args = yaml.load(f, Loader=yaml.UnsafeLoader)
@@ -1209,8 +1044,11 @@ def main():
     if args.model == 2:
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
+
+        # files = ['saved_models/model_updates_dqn_breakout_0.pth',
+        #          'saved_models/model_updates_dqn_breakout_2000000.pth']
         
-        files = ['saved_models/model_updates_dqn_breakout_1000000.pth',
+        files = ['saved_models/model_updates_dqn_breakout_0.pth',
                  'saved_models/model_updates_dqn_breakout_1000000.pth',
                  'saved_models/model_updates_dqn_breakout_2000000.pth',
                  'saved_models/model_updates_dqn_breakout_3000000.pth',
@@ -1234,43 +1072,28 @@ def main():
         #         'saved_models/model_updates_dqn_frostbite_10000000.pth']
         
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
-       
+
     if args.model == 3:
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
+
+        # files = ['saved_models/model_updates_dqn_breakout_0.pth',
+        #          'saved_models/model_updates_dqn_breakout_2000000.pth']
         
-        files = ['saved_models/code_061_model_updates_dqn_breakout_0.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_1000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_2000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_3000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_4000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_5000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_6000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_7000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_8000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_9000000.pth',
-                 'saved_models/code_061_model_updates_dqn_breakout_10000000.pth']
+        files = ['saved_models_real_input/model_updates_dqn_breakout_0.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_1000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_2000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_3000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_4000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_5000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_6000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_7000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_8000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_9000000.pth',
+                 'saved_models_real_input/model_updates_dqn_breakout_10000000.pth']
         
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
-
-    if args.model == 4:
         
-        assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
-        
-        files = ['saved_models/model_updates_dqn_breakout_0.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_1000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_2000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_3000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_4000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_5000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_6000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_7000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_8000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_9000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_10000000.pth']
-        
-        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
-
     for file in files:
         
         print("file name is ", file)
@@ -1280,11 +1103,12 @@ def main():
 
         if args.model != 1:
             print("Using CNN model")
-            loaded_state_dict = torch.load(file, map_location=torch.device('cpu'), weights_only=True)
-            print(loaded_state_dict.keys())
-            agent.dQ_network.load_state_dict(torch.load(file, map_location=torch.device('cpu'), weights_only=True))
-            print(f"load file {file}")
-            agent.dQ_network.eval()
+            if args.test == 1:
+                loaded_state_dict = torch.load(file)
+                print(loaded_state_dict.keys())
+                agent.dQ_network.load_state_dict(torch.load(file, map_location=device, weights_only=True))
+                print(f"load file {file}")
+                agent.dQ_network.eval()
 
         episodes = 0
         frames_num = 0
@@ -1292,245 +1116,246 @@ def main():
         info = {}
         lives = 0
         lives_after = 0
-
-        stacked_o_t[...] = 0
-        obs[...] = 0
-        obs_buffer[...] = 0
-        a_t = 0
-
-        print(f"start all episodes for the current model: env.observation_space.shape: {env.observation_space.shape}, dtype: {stacked_o_t.dtype}")
-
+        
+        # while episodes < 100:
         while episodes < args.n_episodes:
-
-            frames_num = 0
-            fps_time1 = time.time()
-            info: dict = {}
-            lives = 0
-            lives_after = 0
-
+            
             score = 0
             steps = 0
             done = False
             pdone = False
             terminated = False
             truncated = False
-            episode_end = False
             psudo_episode_end = False
-            
-            # print(f"Start of an episodes")
+            episode_end = False
 
-            terminated = True
-            truncated = True            
-            while terminated or truncated:
-                if not data_queue.empty():
-                    print(f"Start a new episodes: Env reset inside Noop reset: Lives: {lives}, no action")
-                    terminated, truncated, lives, lives_after, reward = process_serial_data()
-
-            if args.forpaper == 1:
-                # save file for analysis
-                start_time = time.time()
-                for i in range(1000):
-                    observe()
-                    o_t = agent.preprocess(obs)
-                print(f"time taken to get the first observation after reset: {time.time() - start_time:.2f} seconds")
-                print("start to preprocess the first observation after reset")
-                o_t = agent.preprocess(obs)
-                time.sleep(2)
-                    
-                raise Exception("stop here for debug")
-                # need to remove in the experiment
-            
+            # initial reset
+            if episodes == 0:
+                obs, info = env.reset(seed=args.seed)
+            else:
+                obs, info = env.reset(seed=None)
+        
+            lives_after = lives = env.unwrapped.ale.lives()
+        
+            # --- Initial noop reset ---
+            # FireResetEnv reset start
+            # EpisodicLifeEnv reset start
+            # NoopResetEnv reset start
             observe()
-            # print("start to preprocess the first observation after reset")
-            o_t = agent.preprocess(obs)
+            obs = np.zeros(0)
+            info: dict = {}
+            noop_reset_action(msg_prefix="First Env Reset: ")
+            # NoopResetEnv reset end
 
-            noops_reset()
-            
-            lives = lives_after
+            lives = env.unwrapped.ale.lives()
+            # EpisodicLifeEnv reset end
 
-            # Reset Action 1
-            episode_reset_action = 1
-            reset_action()
-            
-            lives = lives_after
+            if has_fire:
+                episode_reset_action = 1
+                reset_action()
+                lives = env.unwrapped.ale.lives()
+                
+                episode_reset_action = 2
+                reset_action()
+                lives = env.unwrapped.ale.lives()
+            # FireResetEnv reset end
 
-            # Reset Action 2
-            episode_reset_action = 2
-            reset_action()
-
-            lives = lives_after
-            
             o_t = agent.preprocess(obs)
             stacked_o_t[0, -1, :, :] = o_t
             s_t = stacked_o_t.copy()
-
+            print(f"s_t, {type(s_t)}, {s_t.shape}")
+            
             while True:
-
+                
                 s_t_tensor = torch.as_tensor(s_t, device=device)
 
                 # Start of getting the action from the model or the player
+                if args.display == 1:
+                    
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT: 
+                            print("quit")
+                            inner_loop_break = True
+                            break
+                        elif event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_ESCAPE:
+                                print("escape")
+                                inner_loop_break = True
+                                break
+                        elif event.type == pygame.WINDOWRESIZED:
+                            # Compute the maximum video size that fits into the new window
+                            scale_width = event.x / game.video_size[0]
+                            scale_height = event.y / game.video_size[1]
+                            scale = min(scale_height, scale_width)
+                            game.video_size = (scale * game.video_size[0], scale * game.video_size[1])
+
+                if inner_loop_break:
+                    break
+
                 if file_num == 0:
-                    a_t = env.action_space.sample()
+                    a_t = agent.env.action_space.sample()
                 else:
                     if args.model == 1:
                         a_t = model.predict(s_t, deterministic=True)[0][0]
                     elif args.model != 1:
                         a_t = agent.get_action(s_t_tensor)
 
-                # duplicate the atari wrapper MaxAndSkipEnv functionality here
-                total_r_t = 0.0
+                # Start of taking action and getting the reward from the environment
+                total_reward = 0.0
                 terminated = False
                 truncated = False
-                send_ser_command(ser, a_t)
-                skip_time = time.time()
-                i = 0
-                while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                    if i >= skip:
-                        # print(f"playing, i: {i} reached skip: {skip}, breaking out of loop")
-                        while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                            pass
-                        break
-                    # half of the key hold time for fire action, divided by skip to spread out the frames
-                    time.sleep((SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * OFFSET)
-                    stroke_time = time.time()
+                # 4 is skipping frames and doing max pooling over the last 2 frames
+                for i in range(skip):
+                    obs, reward, terminated, truncated, info = env.step(a_t)
                     observe()
-                    reward = 0.0
-                    if not data_queue.empty():
-                        terminated, truncated, _, lives_after, reward = process_serial_data()
-                    if inner_loop_break:
-                        break
+                    lives_after = env.unwrapped.ale.lives()
+
                     score += reward
                     steps += 1
                     frames_num += 1
+
                     if i == skip - 2:
                         obs_buffer[0] = obs
                     if i == skip - 1:
                         obs_buffer[1] = obs
-                    total_r_t += float(reward)
-                    if terminated:
-                        done = True
-                    i += 1
+
+                    total_reward += float(reward)
+
                     if terminated or truncated:
                         episode_end = True
+                        if terminated:
+                            done = True
                         break
-                    while (time.time() - stroke_time) < (SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * (1-OFFSET):
-                        pass
-                if inner_loop_break:
-                    break
 
                 obs = obs_buffer.max(axis=0)
+                r_t = np.sign(float(total_reward))
                 o_t = agent.preprocess(obs)
-                if 0 < lives_after < lives:
-                    psudo_episode_end = True
+
+                if 0 < lives_after < lives and has_lives:
                     pdone = True
+                    psudo_episode_end = True
                     if episode_end:
                         psudo_episode_end = False
                     if done:
                         pdone = False
+                    terminated = True
+
+                if lives_after != lives or terminated or truncated:
+                    print(f"lives: {lives} -> {lives_after}, steps: {steps}, terminated: {terminated}, truncated: {truncated}, pdone: {pdone}, done: {done}")
+
+                lives = lives_after
+                
                 total_steps += 1
-                # human player won't wait for the key released, so the below wait time is removed
-                # while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                #     pass
 
                 if psudo_episode_end or episode_end:
                     terminal_stacked_o_t = np.roll(stacked_o_t, shift=-1, axis=1)
-                    terminal_stacked_o_t[0, -1, :, :] = o_t
-
+                    terminal_stacked_o_t[0, -1, :, :] = o_t.copy()
                     fps_time2 = time.time()
                     time_elapsed = fps_time2 - fps_time1
                     Calculated_FPS = frames_num / time_elapsed if time_elapsed > 0 else float('inf')
                     frames_num = 0
                     fps_time1 = time.time()
-
-                    if psudo_episode_end == True:
-
-                        terminated = False
-                        truncated = False
-
-                        # print(f"Start of a pseudo episodes")
-
-                        episode_reset_action = 0
-                        reset_action()
-
-                        if terminated or truncated:
-                            done = True
-                            episode_end = True
-
-                    # Start of getting the state from the environment
-                    if episode_end == True:
-                        if score > topscore:
-                            topscore = score
-
-                        print(f"***** FPS: {Calculated_FPS:>8.2f} Episodes: {episodes:>5d} total_steps: {total_steps:>8d} score: {score:>5.2f} topscore: {topscore:>5.2f}")
-
-                        scores = np.append(scores, score)
-                        hns = get_human_normalized_score(env_id, score)
-                        hns_scores = np.append(hns_scores, hns)
-
-                        score = 0
-                        steps = 0
-                        terminated = False
-                        truncated = False
-                        frames_num = 0
-                        obs[...] = 0
-                        obs_buffer[...] = 0
-                        o_t[...] = 0
-                        stacked_o_t[...] = 0
-                        
-                        fps_time1 = time.time()
-
-                        episodes += 1
-                        print(f"epsiodes increased to {episodes}, the end of the real episode, reset the environment and start a new episode")
-                        print(f"break out of the while loop for the episode end")
-                        break
-                                                
-                    lives = lives_after
-
-                    # Reset Action 1
-                    episode_reset_action = 1
-                    reset_action()
                     
-                    lives = lives_after
-                        
-                    # Reset Action 2
-                    episode_reset_action = 2
-                    reset_action()
-                        
-                    lives = lives_after
+                if psudo_episode_end:
+                    
+                    # no-op action EpisodicLifeEnv reset
+                    print(f"Lives loss: Action: 0, lives: {lives} -> {env.unwrapped.ale.lives()}")
+                    obs = np.zeros(0)
+                    info: dict = {}
+                    episode_reset_action = 0
+                    action_not_in_the_loop()
+                    lives = lives_after = env.unwrapped.ale.lives()
 
+                    if terminated or truncated:
+                        episode_end = True
+                    # EpisodicLifeEnv reset end
+                        
+                    if not episode_end:
+                        if has_fire:
+                            episode_reset_action = 1
+                            reset_action()
+                            lives = lives_after = env.unwrapped.ale.lives()
+
+                            if terminated or truncated:
+                                episode_end = True
+                            
+                            if not episode_end:
+
+                                episode_reset_action = 2
+                                reset_action()
+                                lives = lives_after = env.unwrapped.ale.lives()
+                            # FireResetEnv reset end
+
+                    lives = lives_after
+                
                     o_t = agent.preprocess(obs)
+
                     stacked_o_t[...] = 0
 
+                    EPISODE += 1
+
+                if episode_end == True:
+                    terminated = False
+                    truncated = False
+
+                    if score > topscore:
+                        topscore = score
+
+                    stacked_o_t[...] = 0
+                    
+                    print(f"***** Calculated_FPS: {Calculated_FPS:>8.2f} Episodes: {episodes:>5d} EPISODE: {EPISODE:>5d} total_steps: {total_steps:>8d} replay_buffer.size: {agent.replay_buffer.size():>5d} score: {score:>5.2f} topscore: {topscore:>5.2f}")
+
+                    scores = np.append(scores, score)
+                    hns = get_human_normalized_score(env_id, score)
+                    hns_scores = np.append(hns_scores, hns)
+
+                    score = 0
+                    steps = 0
+                    terminated = False
+                    truncated = False
+                    frames_num = 0
+                    fps_time1 = time.time()
+                    
+                    EPISODE += 1
+                    episodes += 1
+                    break
+
+                stacked_o_t = np.roll(stacked_o_t, shift=-1, axis=1)
+                stacked_o_t[0, -1, :, :] = o_t.copy()
+                # End of taking action and getting the reward from the environment        
+                
+                s_t = stacked_o_t.copy()
+                
+                total_steps += 1
+                
+                if psudo_episode_end:
+                    terminated = False
+                    truncated = False
+                    pdone = False
+                    psudo_episode_end = False
+                    
+                if episode_end:                
                     terminated = False
                     truncated = False
                     done = False
                     pdone = False
                     episode_end = False
                     psudo_episode_end = False
-
-                stacked_o_t = np.roll(stacked_o_t, shift=-1, axis=1)
-                stacked_o_t[0, -1, :, :] = o_t.copy()
-                # End of taking action and getting the reward from the environment        
-
-                s_t = stacked_o_t.copy()
-                
+                                                            
                 if inner_loop_break:
-                    print("breaking out of the while loop of an episode")
+                    print("break 2")
                     break
 
-                if psudo_episode_end:
-                    info: dict = {}
-                    # o_t = np.zeros(0)
-                    obs[...] = 0
-
             if inner_loop_break:
-                print("breaking out of the loop for episodes")
+                print("break 3")
                 break
 
         if inner_loop_break:
-            print("breaking out of the while loop for files")
+            print(" break 4")
             break
-
+        
+        print(f"file_num: {file_num}, labels: {labels}")
+        print(f"label: {labels[file_num]}, scores: {scores}")
         file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
         file_path3 = env_id + '-hns-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
         
@@ -1604,6 +1429,7 @@ def main():
         hns_scores = np.array([])
         file_num += 1
 
+    
     # Save the training progress plot after all test steps are completed
     fig1.savefig("training_progress_final.png", dpi=300, bbox_inches='tight')
     fig3.savefig("training_progress_final3.png", dpi=300, bbox_inches='tight')
@@ -1613,26 +1439,21 @@ def main():
     print(f"info: {info}")
     pygame.quit()
 
-    print("end of evalution, start to close the resources")
+    print("end of evaluation")
 
     time.sleep(0.5)
 
-    print("*"*5 + " Releasing camera resources...")
-    cam.stop()
-    cv2.destroyAllWindows()
-    print("*"*5 + " Camera resources released.")
+    if args.sensor == 1:
+        print("*"*5 + " Releasing camera resources...")
+        cam.stop()
+        cv2.destroyAllWindows()
+        print("*"*5 + " Camera resources released.")
     
     env.close()
-    stop_thread = True
-    thread.stop()
-    print("*"*5 + " Thread is closed.")
+    print("*"*5 + " Environment is closed.")
 
     time.sleep(0.5)
 
-    if ser and ser.isOpen():
-        ser.close()
-        print("*"*5 + " Serial port is closed.")
-    
     return
 
 if __name__ == "__main__":
