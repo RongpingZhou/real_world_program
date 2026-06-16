@@ -251,11 +251,11 @@ VIDEO_FPS = 120
 
 # [105:425, 205:450] oringinal position for training
 # [100:420, 205:450] minor change for testing
-# REAL_WORLD_INPUT_HEIGHT_TOP = 105
-REAL_WORLD_INPUT_HEIGHT_TOP = 100
+REAL_WORLD_INPUT_HEIGHT_TOP = 105
+# REAL_WORLD_INPUT_HEIGHT_TOP = 100
 #415
-# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425
-REAL_WORLD_INPUT_HEIGHT_BOTTOM = 420
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425
+# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 420
 REAL_WORLD_INPUT_WIDTH_LEFT = 205
 REAL_WORLD_INPUT_WIDTH_RIGHT = 450
 
@@ -698,7 +698,6 @@ def send_ser_command(ser, action):
                 break
     except serial.SerialException as e:
         print(f"Error: {e}")
-
 # End of Hardware emulated keyboard functions
 
 dictionary = {}

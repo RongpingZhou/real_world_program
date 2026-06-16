@@ -70,4 +70,5 @@ python code_068_dqn_agent_no_nature_test_for_real_world_input_system.cpython-310
     --zoom 1.5 \
     --seed -1 \
     --plot 1 \
-    --crop 1
+    --crop 1 \
+    --forpaper 1
