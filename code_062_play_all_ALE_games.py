@@ -509,6 +509,19 @@ def main():
                 (pygame.K_DOWN, pygame.K_LEFT, pygame.K_SPACE): 17,  # DOWNLEFTFIRE
             }
 
+        case "ms_pacman":    
+            keys_to_action = {
+                # NOOP is 0, no action
+                (pygame.K_UP,): 1,  # UP
+                (pygame.K_RIGHT,): 2, # RIGHT
+                (pygame.K_LEFT,): 3,  # LEFT
+                (pygame.K_DOWN,): 4,  # DOWN
+                (pygame.K_UP, pygame.K_RIGHT): 5,  # UPRIGHT
+                (pygame.K_UP, pygame.K_LEFT): 6,  # UPLEFT
+                (pygame.K_DOWN, pygame.K_RIGHT): 7,  # DOWNRIGHT
+                (pygame.K_DOWN, pygame.K_LEFT): 8,  # DOWNLEFT
+            }
+
         # keys_to_action = {
         #     (pygame.K_a,): 1,  # Fire
         #     (pygame.K_b,): 2,  # move up
@@ -632,6 +645,8 @@ def main():
         elif wait_on_player is False or len(game.pressed_keys) > 0:
             action = key_code_to_action.get(tuple(sorted(game.pressed_keys)), 0)
             # if game.pressed_keys:
+            #     print(f"game.pressed_keys: {game.pressed_keys}")
+            #     print(f"Pressed keys: {[pygame.key.name(k) for k in game.pressed_keys]}, Action taken: {action}")
             #     print(f"Action taken: {action}")
             # internal_steps += 1
             # print(f"steps: {internal_steps}, Action taken: {action}")
