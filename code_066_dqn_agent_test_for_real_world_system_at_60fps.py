@@ -20,10 +20,12 @@ import random
 import sys
 sys.path.append("domain/")
 sys.path.append("mybuffer/")
+sys.path.append("mylibs/")
 
 from evaluation.atari_data import get_human_normalized_score, get_env_id
 
 from mybuffer.replaybm import ReplayBuffer
+from mylibs.commands import commands_dict
 
 import pygame
 
@@ -672,17 +674,22 @@ def send_up_command(ser):
     except serial.SerialException as e:
         print(f"Error: {e}") 
 
-def send_ser_command(ser, action):
+def send_ser_command(ser, env_id, action):
+
+    if action == 0:
+        return  # No action for 0, just return
+
+    command = commands_dict.get((env_id, action))
     
-    match action:
-        case 0:
-            return
-        case 1:
-            command = '{' + 'space' + '}'
-        case 2:
-            command = '{' + 'right' + '}'
-        case 3:
-            command = '{' + 'left' + '}'
+    # match action:
+    #     case 0:
+    #         return
+    #     case 1:
+    #         command = '{' + 'space' + '}'
+    #     case 2:
+    #         command = '{' + 'right' + '}'
+    #     case 3:
+    #         command = '{' + 'left' + '}'
 
     try:
         message = 'Send ' + command + '\n'
@@ -997,7 +1004,7 @@ def main():
         NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
         while (time.time() - noops_time) < NO_OP_TIME:
             if i//skip == i/skip:
-                send_ser_command(ser, 0)
+                send_ser_command(ser, env_id, 0)
                 # print(f"Noop reset: i = {i} Noop is {noops} and send command 0")
             time.sleep(SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip * OFFSET)
             stroke_time = time.time()
@@ -1031,7 +1038,7 @@ def main():
         nonlocal terminated
         nonlocal truncated
         
-        send_ser_command(ser, episode_reset_action)
+        send_ser_command(ser, env_id, episode_reset_action)
         skip_time = time.time()
         i = 0
         while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
@@ -1258,18 +1265,30 @@ def main():
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
         
-        files = ['saved_models/model_updates_dqn_breakout_0.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_1000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_2000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_3000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_4000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_5000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_6000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_7000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_8000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_9000000.pth',
-                 'saved_models/code_065_model_updates_dqn_breakout_10000000.pth']
-        
+        # files = ['saved_models/model_updates_dqn_breakout_0.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_1000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_2000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_3000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_4000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_5000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_6000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_7000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_8000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_9000000.pth',
+        #          'saved_models/code_065_model_updates_dqn_breakout_10000000.pth']
+
+        files = ['saved_models/model_updates_dqn_ms_pacman_0.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_1000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_2000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_3000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_4000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_5000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_6000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_7000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_8000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_9000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_10000000.pth']
+                
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
 
     for file in files:
@@ -1382,7 +1401,7 @@ def main():
                 total_r_t = 0.0
                 terminated = False
                 truncated = False
-                send_ser_command(ser, a_t)
+                send_ser_command(ser, env_id, a_t)
                 skip_time = time.time()
                 i = 0
                 while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:

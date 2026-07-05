@@ -474,6 +474,8 @@ def main():
     env_id = get_env_id(args.gym_id)
     
     keys_to_action = keys_to_action_dict.get(env_id)
+    
+    print(f"env_id: {env_id}, keys_to_action: {keys_to_action}")
 
     # match env_id:
         
