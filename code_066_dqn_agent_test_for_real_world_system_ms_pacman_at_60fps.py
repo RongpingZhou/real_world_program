@@ -1294,16 +1294,16 @@ def main():
         #          'saved_models/code_065_model_updates_dqn_breakout_10000000.pth']
 
         files = ['saved_models/model_updates_dqn_ms_pacman_0.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_1000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_2000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_3000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_4000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_5000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_6000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_7000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_8000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_9000000.pth',
-                 'saved_models/model_updates_dqn_ms_pacman_10000000.pth']
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_1000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_2000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_3000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_4000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_5000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_6000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_7000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_8000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_9000000.pth',
+                 'saved_models/code_065_model_updates_dqn_ms_pacman_10000000.pth']
         
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
 

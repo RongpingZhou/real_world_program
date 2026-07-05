@@ -26,6 +26,7 @@ import random
 import sys
 sys.path.append("domain/")
 sys.path.append("mybuffer/")
+sys.path.append("mylibs/")
 
 from evaluation.atari_data import get_human_normalized_score, get_env_id
 from evaluation import library as rly
@@ -33,6 +34,7 @@ from evaluation import metrics
 from evaluation import plot_utils
 
 from mybuffer.replaybm import ReplayBuffer
+from mylibs.commands import commands_dict
 
 import pygame
 from pygame import Surface
@@ -100,6 +102,44 @@ import matplotlib.pyplot as plt
 
 # Use 'TkAgg', 'Qt5Agg', 'Qt4Agg', etc.
 # matplotlib.use('TkAgg')
+
+NOOP_MAX = 30
+ENVS = 0
+FRAMES_SKIP = 4
+LEARNING_RATE = 1e-4
+BUFFER_SIZE = 100_000  # 100k
+LEARNING_STARTS = BUFFER_SIZE  # Number of steps before starting training
+GAMMA = 0.99
+BATCH_SIZE = 32
+MAX_GRAD_NORM = 10.0
+TRAINING_FREQ = 4  # Train the agent every `TRAINING_FREQ` steps
+TARGET_UPDATE_INTERVAL = 1_000  # Update the target network every `TARGET_UPDATE_FREQ` steps
+EXPLORATION_FRACTION = 0.1  # Fraction of entire training period over which the exploration rate is annealed
+EXPLORATION_INITIAL_EPSILON = 1.0  # Initial value of epsilon in epsilon-greedy exploration
+EXPLORATION_FINAL_EPSILON = 0.01  # Final value of epsilon in epsilon-greedy exploration
+TEST_STEP_SIZE =  1_000_000
+MAX_TEST_STEPS = 10_000_000  # 10 million steps
+
+IMAGE_CHANNELS = 4
+STACK_FRAMES = 4
+IMAGE_ROWS = 84
+IMAGE_COLS = 84
+SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.067 # elite typist speed
+print(f"SLIGHTLY_MORE_THAN_KEY_HOLD_TIME: {SLIGHTLY_MORE_THAN_KEY_HOLD_TIME} seconds")
+OFFSET = 0.2 # to capture the frame after the key has pressed for 0.2 * hold time, to make sure the frame has the effect of the key press
+
+VIDEO_WIDTH = 640
+VIDEO_HEIGHT = 480
+VIDEO_FPS = 120
+
+# [105:425, 205:450]
+REAL_WORLD_INPUT_HEIGHT_TOP = 105
+# REAL_WORLD_INPUT_HEIGHT_TOP = 95
+#415
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425
+# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 415
+REAL_WORLD_INPUT_WIDTH_LEFT = 205
+REAL_WORLD_INPUT_WIDTH_RIGHT = 450
 
 def setup_matplotlib_backend():
     """Configure matplotlib backend based on environment"""
@@ -181,44 +221,6 @@ print(f"screen width: {screen_width}, screen height: {screen_height}")
 window_x = 1200 
 window_y = 80
 os.environ['SDL_VIDEO_WINDOW_POS'] = f"{window_x},{window_y}"
-
-NOOP_MAX = 30
-ENVS = 0
-FRAMES_SKIP = 4
-LEARNING_RATE = 1e-4
-BUFFER_SIZE = 100_000  # 100k
-LEARNING_STARTS = BUFFER_SIZE  # Number of steps before starting training
-GAMMA = 0.99
-BATCH_SIZE = 32
-MAX_GRAD_NORM = 10.0
-TRAINING_FREQ = 4  # Train the agent every `TRAINING_FREQ` steps
-TARGET_UPDATE_INTERVAL = 1_000  # Update the target network every `TARGET_UPDATE_FREQ` steps
-EXPLORATION_FRACTION = 0.1  # Fraction of entire training period over which the exploration rate is annealed
-EXPLORATION_INITIAL_EPSILON = 1.0  # Initial value of epsilon in epsilon-greedy exploration
-EXPLORATION_FINAL_EPSILON = 0.01  # Final value of epsilon in epsilon-greedy exploration
-TEST_STEP_SIZE =  1_000_000
-MAX_TEST_STEPS = 10_000_000  # 10 million steps
-
-IMAGE_CHANNELS = 4
-STACK_FRAMES = 4
-IMAGE_ROWS = 84
-IMAGE_COLS = 84
-SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.067 # elite typist speed
-print(f"SLIGHTLY_MORE_THAN_KEY_HOLD_TIME: {SLIGHTLY_MORE_THAN_KEY_HOLD_TIME} seconds")
-OFFSET = 0.2 # to capture the frame after the key has pressed for 0.2 * hold time, to make sure the frame has the effect of the key press
-
-VIDEO_WIDTH = 640
-VIDEO_HEIGHT = 480
-VIDEO_FPS = 120
-
-# [105:425, 205:450]
-REAL_WORLD_INPUT_HEIGHT_TOP = 105
-# REAL_WORLD_INPUT_HEIGHT_TOP = 95
-#415
-REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425
-# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 415
-REAL_WORLD_INPUT_WIDTH_LEFT = 205
-REAL_WORLD_INPUT_WIDTH_RIGHT = 450
 
 inner_loop_break = False
 
@@ -611,17 +613,22 @@ def send_up_command(ser):
     except serial.SerialException as e:
         print(f"Error: {e}") 
 
-def send_ser_command(ser, action):
+def send_ser_command(ser, env_id, action):
     
-    match action:
-        case 0:
-            return
-        case 1:
-            command = '{' + 'space' + '}'
-        case 2:
-            command = '{' + 'right' + '}'
-        case 3:
-            command = '{' + 'left' + '}'
+    if action == 0:
+        return  # No action for 0, just return
+
+    command = commands_dict.get((env_id, action))
+    
+    # match action:
+    #     case 0:
+    #         return
+    #     case 1:
+    #         command = '{' + 'space' + '}'
+    #     case 2:
+    #         command = '{' + 'right' + '}'
+    #     case 3:
+    #         command = '{' + 'left' + '}'
 
     try:
         message = 'Send ' + command + '\n'
@@ -1093,7 +1100,7 @@ def main():
         NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
         while (time.time() - noops_time) < NO_OP_TIME:
             if i//skip == i/skip:
-                send_ser_command(ser, 0)
+                send_ser_command(ser, env_id, 0)
             time.sleep(SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip * OFFSET)
             stroke_time = time.time()
             observe()
@@ -1125,7 +1132,7 @@ def main():
         nonlocal terminated
         nonlocal truncated
         
-        send_ser_command(ser, episode_reset_action)
+        send_ser_command(ser, env_id, episode_reset_action)
         skip_time = time.time()
         i = 0
         while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
@@ -1504,7 +1511,7 @@ def main():
         total_r_t = 0.0
         terminated = False
         truncated = False
-        send_ser_command(ser, a_t)
+        send_ser_command(ser, env_id, a_t)
 
         skip_time = time.time()
         i = 0

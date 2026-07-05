@@ -8,6 +8,7 @@ from typing import Callable, List
 
 import sys
 sys.path.append("domain/")
+sys.path.append("mylibs/")
 
 import cv2
 import cv2
@@ -29,6 +30,7 @@ except ImportError as e:
 import domain.flappy_bird as flappy_bird
 from domain.flappy_bird import FlappyBirdEnv
 # print(f"flappy bird window size: {flappy_bird.SCREENWIDTH} x {flappy_bird.SCREENHEIGHT}")
+from mylibs.commands import keys_to_action_dict
 
 import serial
 import time
@@ -471,76 +473,78 @@ def main():
 
     env_id = get_env_id(args.gym_id)
     
-    match env_id:
+    keys_to_action = keys_to_action_dict.get(env_id)
+
+    # match env_id:
         
-        case "flappybird":        
-            keys_to_action = {
-                (pygame.K_UP,): 1,  # FLAP
-            }
+    #     case "flappybird":        
+    #         keys_to_action = {
+    #             (pygame.K_UP,): 1,  # FLAP
+    #         }
 
-        case "breakout":
-            keys_to_action = {
-                # NOOP is 0, no action
-                (pygame.K_SPACE,):  1,  # Fire (release ball)
-                (pygame.K_RIGHT,):  2,  # Move right
-                (pygame.K_LEFT,):   3,  # Move left
-            }
+    #     case "breakout":
+    #         keys_to_action = {
+    #             # NOOP is 0, no action
+    #             (pygame.K_SPACE,):  1,  # Fire (release ball)
+    #             (pygame.K_RIGHT,):  2,  # Move right
+    #             (pygame.K_LEFT,):   3,  # Move left
+    #         }
 
-        case "space_invaders":    
-            keys_to_action = {
-                # NOOP is 0, no action
-                # (pygame.K_0, pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5, pygame.K_6, pygame.K_7, pygame.K_8, pygame.K_9, pygame.K_COMMA, pygame.K_PERIOD, pygame.K_LEFTBRACKET, pygame.K_RIGHTBRACKET): 0,
-                (pygame.K_SPACE,): 1,  # FIRE
-                (pygame.K_UP,): 2,  # UP
-                (pygame.K_RIGHT,): 3, # RIGHT
-                (pygame.K_LEFT,): 4,  # LEFT
-                (pygame.K_DOWN,): 5,  # DOWN
-                (pygame.K_UP, pygame.K_RIGHT): 6,  # UPRIGHT
-                (pygame.K_UP, pygame.K_LEFT): 7,  # UPLEFT
-                (pygame.K_DOWN, pygame.K_RIGHT): 8,  # DOWNRIGHT
-                (pygame.K_DOWN, pygame.K_LEFT): 9,  # DOWNLEFT
-                (pygame.K_UP, pygame.K_SPACE): 10,  # UPFIRE
-                (pygame.K_RIGHT, pygame.K_SPACE): 11,  # RIGHTFIRE
-                (pygame.K_LEFT, pygame.K_SPACE): 12,  # LEFTFIRE
-                (pygame.K_DOWN, pygame.K_SPACE): 13,  # DOWNFIRE
-                (pygame.K_UP, pygame.K_RIGHT, pygame.K_SPACE): 14,  # UPRIGHTFIRE
-                (pygame.K_UP, pygame.K_LEFT, pygame.K_SPACE): 15,  # UPLEFTFIRE
-                (pygame.K_DOWN, pygame.K_RIGHT, pygame.K_SPACE): 16,  # DOWNRIGHTFIRE
-                (pygame.K_DOWN, pygame.K_LEFT, pygame.K_SPACE): 17,  # DOWNLEFTFIRE
-            }
+    #     case "space_invaders":    
+    #         keys_to_action = {
+    #             # NOOP is 0, no action
+    #             # (pygame.K_0, pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5, pygame.K_6, pygame.K_7, pygame.K_8, pygame.K_9, pygame.K_COMMA, pygame.K_PERIOD, pygame.K_LEFTBRACKET, pygame.K_RIGHTBRACKET): 0,
+    #             (pygame.K_SPACE,): 1,  # FIRE
+    #             (pygame.K_UP,): 2,  # UP
+    #             (pygame.K_RIGHT,): 3, # RIGHT
+    #             (pygame.K_LEFT,): 4,  # LEFT
+    #             (pygame.K_DOWN,): 5,  # DOWN
+    #             (pygame.K_UP, pygame.K_RIGHT): 6,  # UPRIGHT
+    #             (pygame.K_UP, pygame.K_LEFT): 7,  # UPLEFT
+    #             (pygame.K_DOWN, pygame.K_RIGHT): 8,  # DOWNRIGHT
+    #             (pygame.K_DOWN, pygame.K_LEFT): 9,  # DOWNLEFT
+    #             (pygame.K_UP, pygame.K_SPACE): 10,  # UPFIRE
+    #             (pygame.K_RIGHT, pygame.K_SPACE): 11,  # RIGHTFIRE
+    #             (pygame.K_LEFT, pygame.K_SPACE): 12,  # LEFTFIRE
+    #             (pygame.K_DOWN, pygame.K_SPACE): 13,  # DOWNFIRE
+    #             (pygame.K_UP, pygame.K_RIGHT, pygame.K_SPACE): 14,  # UPRIGHTFIRE
+    #             (pygame.K_UP, pygame.K_LEFT, pygame.K_SPACE): 15,  # UPLEFTFIRE
+    #             (pygame.K_DOWN, pygame.K_RIGHT, pygame.K_SPACE): 16,  # DOWNRIGHTFIRE
+    #             (pygame.K_DOWN, pygame.K_LEFT, pygame.K_SPACE): 17,  # DOWNLEFTFIRE
+    #         }
 
-        case "ms_pacman":    
-            keys_to_action = {
-                # NOOP is 0, no action
-                (pygame.K_UP,): 1,  # UP
-                (pygame.K_RIGHT,): 2, # RIGHT
-                (pygame.K_LEFT,): 3,  # LEFT
-                (pygame.K_DOWN,): 4,  # DOWN
-                (pygame.K_UP, pygame.K_RIGHT): 5,  # UPRIGHT
-                (pygame.K_UP, pygame.K_LEFT): 6,  # UPLEFT
-                (pygame.K_DOWN, pygame.K_RIGHT): 7,  # DOWNRIGHT
-                (pygame.K_DOWN, pygame.K_LEFT): 8,  # DOWNLEFT
-            }
+    #     case "ms_pacman":    
+    #         keys_to_action = {
+    #             # NOOP is 0, no action
+    #             (pygame.K_UP,): 1,  # UP
+    #             (pygame.K_RIGHT,): 2, # RIGHT
+    #             (pygame.K_LEFT,): 3,  # LEFT
+    #             (pygame.K_DOWN,): 4,  # DOWN
+    #             (pygame.K_UP, pygame.K_RIGHT): 5,  # UPRIGHT
+    #             (pygame.K_UP, pygame.K_LEFT): 6,  # UPLEFT
+    #             (pygame.K_DOWN, pygame.K_RIGHT): 7,  # DOWNRIGHT
+    #             (pygame.K_DOWN, pygame.K_LEFT): 8,  # DOWNLEFT
+    #         }
 
-        # keys_to_action = {
-        #     (pygame.K_a,): 1,  # Fire
-        #     (pygame.K_b,): 2,  # move up
-        #     (pygame.K_c,): 3, # Move right
-        #     (pygame.K_d,): 4,  # Move left
-        #     (pygame.K_e,): 5,  # Fire
-        #     (pygame.K_b, pygame.K_c): 6,  # Fire
-        #     (pygame.K_b, pygame.K_d): 7,  # Fire
-        #     (pygame.K_e, pygame.K_c): 8,  # Fire
-        #     (pygame.K_e, pygame.K_d): 9,  # Fire
-        #     (pygame.K_b, pygame.K_a): 10,  # Fire
-        #     (pygame.K_b, pygame.K_a): 11,  # Fire
-        #     (pygame.K_d, pygame.K_a): 12,  # Fire
-        #     (pygame.K_e, pygame.K_a): 13,  # Fire
-        #     (pygame.K_b, pygame.K_c, pygame.K_a): 14,  # Fire
-        #     (pygame.K_b, pygame.K_d, pygame.K_a): 15,  # Fire
-        #     (pygame.K_e, pygame.K_c, pygame.K_a): 16,  # Fire
-        #     (pygame.K_e, pygame.K_d, pygame.K_a): 17,  # Fire
-        # }
+    #     # keys_to_action = {
+    #     #     (pygame.K_a,): 1,  # Fire
+    #     #     (pygame.K_b,): 2,  # move up
+    #     #     (pygame.K_c,): 3, # Move right
+    #     #     (pygame.K_d,): 4,  # Move left
+    #     #     (pygame.K_e,): 5,  # Fire
+    #     #     (pygame.K_b, pygame.K_c): 6,  # Fire
+    #     #     (pygame.K_b, pygame.K_d): 7,  # Fire
+    #     #     (pygame.K_e, pygame.K_c): 8,  # Fire
+    #     #     (pygame.K_e, pygame.K_d): 9,  # Fire
+    #     #     (pygame.K_b, pygame.K_a): 10,  # Fire
+    #     #     (pygame.K_b, pygame.K_a): 11,  # Fire
+    #     #     (pygame.K_d, pygame.K_a): 12,  # Fire
+    #     #     (pygame.K_e, pygame.K_a): 13,  # Fire
+    #     #     (pygame.K_b, pygame.K_c, pygame.K_a): 14,  # Fire
+    #     #     (pygame.K_b, pygame.K_d, pygame.K_a): 15,  # Fire
+    #     #     (pygame.K_e, pygame.K_c, pygame.K_a): 16,  # Fire
+    #     #     (pygame.K_e, pygame.K_d, pygame.K_a): 17,  # Fire
+    #     # }
 
 
     if hasattr(env.unwrapped, 'ale') and hasattr(env.unwrapped.ale, 'lives'):
