@@ -693,6 +693,7 @@ def send_ser_command(ser, env_id, action):
 
     try:
         message = 'Send ' + command + '\n'
+        print(f"message: {message}")
         ser.write(message.encode())
         while True:
             if ser.in_waiting > 0:

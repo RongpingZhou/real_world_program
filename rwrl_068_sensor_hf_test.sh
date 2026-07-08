@@ -69,10 +69,10 @@ python code_068_dqn_agent_test_for_real_world_input_system.py \
     --training 0 \
     --algo dqn \
     --test 1 \
-    --n-episodes 1 \
+    --n-episodes 100 \
     --cuda False \
     --fps 120 \
     --zoom 1.5 \
     --seed -1 \
     --plot 1 \
-    --crop 0
+    --crop 1

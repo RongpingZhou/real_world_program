@@ -442,9 +442,10 @@ class DQNAgent:
     def preprocess(self, image: np.ndarray) -> np.ndarray:
         if args.crop == 1:
             # image = image[95:415, 190:435]
-            image = image[REAL_WORLD_INPUT_HEIGHT_TOP:REAL_WORLD_INPUT_HEIGHT_BOTTOM, REAL_WORLD_INPUT_WIDTH_LEFT:REAL_WORLD_INPUT_WIDTH_RIGHT]
+            cropped_image = image[REAL_WORLD_INPUT_HEIGHT_TOP:REAL_WORLD_INPUT_HEIGHT_BOTTOM, REAL_WORLD_INPUT_WIDTH_LEFT:REAL_WORLD_INPUT_WIDTH_RIGHT]
             # np.save("env_obs_file.npy", image)
             # raise
+            cv2.imshow('Cropped Image', cropped_image)
 
         if args.display == 1:
             if args.sensor == 0:
