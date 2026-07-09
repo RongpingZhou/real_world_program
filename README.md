@@ -100,9 +100,14 @@ xhost +local:docker
 
 # this command will automatically download the docker images from docker hub, you can replace /dev/video0 to /dev/video1 if your machine recognizes the camera as /dev/video1
 docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
+```
+
+```shell
 # for example, the camera is /dev/video1, then the command would be:
 docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video1:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
+```
 
+```shell
 # inside docker container, install gym for the huggingface model loading
 pip install gym
 
@@ -113,7 +118,9 @@ cd /rl/real_world_program/
 # inside docker container, run the test program for the real world input system
 # close the game window will stop the program
 ./rwrl_068_sensor_hf_test.sh
+```
 
+```shell
 # change the below variables in 
 # "code_068_dqn_agent_test_for_real_world_input_system.py" 
 # to change the game window position
@@ -138,9 +145,14 @@ REAL_WORLD_INPUT_HEIGHT_BOTTOM = 410 # you can change it to fine tune the positi
 REAL_WORLD_INPUT_WIDTH_LEFT = 190 # you can change it to fine tune the position
 REAL_WORLD_INPUT_WIDTH_RIGHT = 435 # you can change it to fine tune the position
 
+```
+
+```shell
 # inside docker container, now start the training program to train an agent
 ./rwrl_067_for_real_world_input_system.sh
+```
 
+```shell
 # outside docker container, install python, virtual envrionment, python packages for tensorboard
 cd ~
 sudo apt update && sudo apt upgrade -y
@@ -153,7 +165,9 @@ pip install tensorboard
 cd ~/mygit/real_world_program/
 tensorboard --logdir ./runs/
 
+```
 
+```shell
 # inside docker container, after training, run the real world input system test program to get the test data
 ./rwrl_068_test_for_real_world_input_system.sh
 ```
@@ -240,12 +254,17 @@ xhost +local:docker
 # on the game machine, this command will automatically download the docker images from docker hub,
 # replace /dev/ttyUSB0 with /dev/ttyUSB1 if the USB to DB9/RS232 cable is recognized as /dev/ttyUSB1 
 docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
+```
+
+```shell
 # on the game machine, for example, the USB to DB9/RS232 cable is /dev/ttyUSB1, then the command would be:
 docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB1:/dev/ttyUSB0:rw -v /dev/video1:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
 
 # on the game machine, inside the docker container, ensure the following:
 # /dev/ttyUSB0 is the USB to DB9/RS232 cable for serial link between two computers
+```
 
+```shell
 # on the game machine, inside docker container, go to the directory for the commands
 cd /rl/real_world_program/
 ```
@@ -258,7 +277,9 @@ Start to run two programs on the agent machine and the game machine respectively
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
 ./rwrl_066_hf_fps_test.sh
+```
 
+```shell
 # on the agent machine, waiting for the below message:
 waiting for handshake signal
 ```
@@ -314,7 +335,9 @@ REAL_WORLD_INPUT_WIDTH_RIGHT = 450 # you can change it to fine tune the position
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
 ./rwrl_065_fps_training.sh
+```
 
+```shell
 # on the agent machine, waiting for the below message:
 waiting for handshake signal
 
@@ -353,7 +376,9 @@ tensorboard --logdir ./runs/
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
 ./rwrl_065_fps_test.sh
+```
 
+```shell
 # on the agent machine, waiting for the below message:
 waiting for handshake signal
 
