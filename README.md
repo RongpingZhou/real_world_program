@@ -87,14 +87,18 @@ v4l2-ctl --list-devices
 
 # if the camera connected to /dev/video0, use the below command to check
 v4l2-ctl -d /dev/video0 --info
+```
 
+```shell
 # use git clone to download the program to ~/mygit/rl
 mkdir -p ~/mygit/
 
 cd ~/mygit/
 
 git clone https://github.com/RongpingZhou/real_world_program.git
+```
 
+```shell
 # allow GUI programs running inside Docker containers (on the same machine) to open windows on your host display
 xhost +local:docker
 
@@ -110,11 +114,15 @@ docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /d
 ```shell
 # inside docker container, install gym for the huggingface model loading
 pip install gym
+```
 
+```shell
 # inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
 ./rwrl_068_hf_test.sh
+```
 
+```shell
 # inside docker container, run the test program for the real world input system
 # close the game window will stop the program
 ./rwrl_068_sensor_hf_test.sh
@@ -160,11 +168,12 @@ sudo apt install python3 python3-pip python3-venv -y
 python3 -m venv rl_venv
 source rl_venv/bin/activate
 pip install tensorboard
+```
 
+```shell
 # running tensorboard to check the learning curves
 cd ~/mygit/real_world_program/
 tensorboard --logdir ./runs/
-
 ```
 
 ```shell
@@ -201,7 +210,9 @@ v4l2-ctl --list-devices
 
 # on the agent machine, if the camera connected to /dev/video0, use the below command to check
 v4l2-ctl -d /dev/video0 --info
+```
 
+```shell
 # connect the Teensy to both computers, 
 # USB to serial cable is connected to the agent machine
 # the Teensy is connected to the game machine, 
@@ -209,12 +220,16 @@ v4l2-ctl -d /dev/video0 --info
 # and the serial link between the agent machine and the game machine, normally the device for this link on the agent machine would be /dev/ttyUSB1
 # the device names assignment is related to the plug in sequence
 ls /dev/tty*
+```
 
+```shell
 # on the agent machine, use git clone to download the program to ~/mygit/rl
 mkdir -p ~/mygit/
 cd ~/mygit/
 git clone https://github.com/RongpingZhou/real_world_program.git
+```
 
+```shell
 # on the agent machine, allow GUI programs running inside Docker containers (on the same machine) to open windows on your host display
 xhost +local:docker
 
@@ -223,6 +238,9 @@ xhost +local:docker
 # replace /dev/ttyUSB0 with /dev/ttyUSB2 if the USB to serial cable connecting Teensy board is recognized as /dev/ttyUSB2, 
 # replace /dev/ttyUSB1 with /dev/ttyUSB3 if the serial link via USB to DB9/RS232 cable is recognized as /dev/ttyUSB3,
 docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/ttyUSB1:/dev/ttyUSB1:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
+```
+
+```shell
 # on the agent machine, for example, the camera is /dev/video1 and the USB to serial cable connecting Teensy board is /dev/ttyUSB2, the serial link via USB to DB9/RS232 cable is /dev/ttyUSB3, then the command would be:
 docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB2:/dev/ttyUSB0:rw -v /dev/ttyUSB3:/dev/ttyUSB1:rw -v /dev/video1:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
 
@@ -230,7 +248,9 @@ docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /d
 # /dev/video0 is the camera aimed at the screen, not the other camera conncted to the agent machine
 # /dev/ttyUSB0 is the the USB to serial cable connecting Teensy board
 # /dev/ttyUSB1 is the USB to DB9/RS232 cable for serial link between two computers
+```
 
+```shell
 # on the agent machine, inside docker container, install gym for the huggingface model loading
 pip install gym
 ```
@@ -242,12 +262,16 @@ pip install gym
 # the serial link between the agent machine and the game machine via two USB to DB9/RS232 cables and a null modem, normally the USB to DB9/RS232 cable for this link on the game machine would be /dev/ttyUSB0
 # the device names assignment is related to the plug in sequence
 ls /dev/tty*
+```
 
+```shell
 # on the game machine, use git clone to download the program to ~/mygit/rl
 mkdir -p ~/mygit/
 cd ~/mygit/
 git clone https://github.com/RongpingZhou/real_world_program.git
+```
 
+```shell
 # on the game machine, allow GUI programs running inside Docker containers (on the same machine) to open windows on your host display
 xhost +local:docker
 
@@ -362,8 +386,10 @@ sudo apt install python3 python3-pip python3-venv -y
 python3 -m venv rl_venv
 source rl_venv/bin/activate
 pip install tensorboard
+```
 
-# running tensorboard to check the learning curves
+```shell
+# on the agent machine, running tensorboard to check the learning curves
 cd ~/mygit/real_world_program/
 tensorboard --logdir ./runs/
 ```
