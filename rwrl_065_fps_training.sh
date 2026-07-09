@@ -1,76 +1,60 @@
-# ALGOS: dict[str, type[BaseAlgorithm]] = {
-#     "a2c": A2C,
-#     "ddpg": DDPG,
-#     "dqn": DQN,
-#     "ppo": PPO,
-#     "sac": SAC,
-#     "td3": TD3,
-#     # SB3 Contrib,
-#     "ars": ARS,
-#     "crossq": CrossQ,
-#     "qrdqn": QRDQN,
-#     "tqc": TQC,
-#     "trpo": TRPO,
-#     "ppo_lstm": RecurrentPPO,
-# }
-
-# AlienNoFrameskip-v4
-# AmidarNoFrameskip-v4
-# AssaultNoFrameskip-v4
-# AsterixNoFrameskip-v4
-# AsteroidsNoFrameskip-v4
-# AtlantisNoFrameskip-v4
-# BankHeistNoFrameskip-v4
-# BattleZoneNoFrameskip-v4
-# BeamRiderNoFrameskip-v4
-# BerzerkNoFrameskip-v4
-# BowlingNoFrameskip-v4
-# BoxingNoFrameskip-v4
-# BoxingNoFrameskip-v4
-# BreakoutNoFrameskip-v4
-# CentipedeNoFrameskip-v4
-# ChopperCommandNoFrameskip-v4
-# CrazyClimberNoFrameskip-v4
-# DefenderNoFrameskip-v4
-# DemonAttackNoFrameskip-v4
-# DoubleDunkNoFrameskip-v4
-# EnduroNoFrameskip-v4
-# FishingDerbyNoFrameskip-v4
-# FreewayNoFrameskip-v4
-# FrostbiteNoFrameskip-v4
-# GopherNoFrameskip-v4
-# GravitarNoFrameskip-v4
-# HeroNoFrameskip-v4
-# IceHockeyNoFrameskip-v4
-# JamesbondNoFrameskip-v4
-# KangarooNoFrameskip-v4
-# KrullNoFrameskip-v4
-# KungFuMasterNoFrameskip-v4
-# MontezumaRevengeNoFrameskip-v4
-# MsPacmanNoFrameskip-v4
-# NameThisGameNoFrameskip-v4
-# PhoenixNoFrameskip-v4
-# PitfallNoFrameskip-v4
-# PongNoFrameskip-v4
-# PrivateEyeNoFrameskip-v4
-# QbertNoFrameskip-v4
-# RiverraidNoFrameskip-v4
-# RoadRunnerNoFrameskip-v4
-# RobotankNoFrameskip-v4
-# SeaquestNoFrameskip-v4
-# SkiingNoFrameskip-v4
-# SolarisNoFrameskip-v4
-# SpaceInvadersNoFrameskip-v4
-# StarGunnerNoFrameskip-v4
-# TennisNoFrameskip-v4
-# TimePilotNoFrameskip-v4
-# TutankhamNoFrameskip-v4
-# UpNDownNoFrameskip-v4
-# VentureNoFrameskip-v4
-# VideoPinballNoFrameskip-v4
-# WizardOfWorNoFrameskip-v4
-# YarsRevengeNoFrameskip-v4
-# ZaxxonNoFrameskip-v4
+# 1     AlienNoFrameskip-v4
+# 2     AmidarNoFrameskip-v4
+# 3     AssaultNoFrameskip-v4
+# 4     AsterixNoFrameskip-v4
+# 5     AsteroidsNoFrameskip-v4
+# 6     AtlantisNoFrameskip-v4
+# 7     BankHeistNoFrameskip-v4
+# 8     BattleZoneNoFrameskip-v4
+# 9     BeamRiderNoFrameskip-v4
+# 10    BerzerkNoFrameskip-v4
+# 11    BowlingNoFrameskip-v4
+# 12    BoxingNoFrameskip-v4
+# 13    BreakoutNoFrameskip-v4
+# 14    CentipedeNoFrameskip-v4
+# 15    ChopperCommandNoFrameskip-v4
+# 16    CrazyClimberNoFrameskip-v4
+# 17    DefenderNoFrameskip-v4
+# 18    DemonAttackNoFrameskip-v4
+# 19    DoubleDunkNoFrameskip-v4
+# 20    EnduroNoFrameskip-v4
+# 21    FishingDerbyNoFrameskip-v4
+# 22    FreewayNoFrameskip-v4
+# 23    FrostbiteNoFrameskip-v4
+# 24    GopherNoFrameskip-v4
+# 25    GravitarNoFrameskip-v4
+# 26    HeroNoFrameskip-v4
+# 27    IceHockeyNoFrameskip-v4
+# 28    JamesbondNoFrameskip-v4
+# 29    KangarooNoFrameskip-v4
+# 30    KrullNoFrameskip-v4
+# 31    KungFuMasterNoFrameskip-v4
+# 32    MontezumaRevengeNoFrameskip-v4
+# 33    MsPacmanNoFrameskip-v4
+# 34    NameThisGameNoFrameskip-v4
+# 35    PhoenixNoFrameskip-v4
+# 36    PitfallNoFrameskip-v4
+# 37    PongNoFrameskip-v4
+# 38    PrivateEyeNoFrameskip-v4
+# 39    QbertNoFrameskip-v4
+# 40    RiverraidNoFrameskip-v4
+# 41    RoadRunnerNoFrameskip-v4
+# 42    RobotankNoFrameskip-v4
+# 43    SeaquestNoFrameskip-v4
+# 44    SkiingNoFrameskip-v4
+# 45    SolarisNoFrameskip-v4
+# 46    SpaceInvadersNoFrameskip-v4
+# 47    StarGunnerNoFrameskip-v4
+# 48    ALE/Surround-v5
+# 49    TennisNoFrameskip-v4
+# 50    TimePilotNoFrameskip-v4
+# 51    TutankhamNoFrameskip-v4
+# 52    UpNDownNoFrameskip-v4
+# 53    VentureNoFrameskip-v4
+# 54    VideoPinballNoFrameskip-v4
+# 55    WizardOfWorNoFrameskip-v4
+# 56    YarsRevengeNoFrameskip-v4
+# 57    ZaxxonNoFrameskip-v4
 
 python code_065_dqn_agent_for_real_world_system_at_60fps.py \
     --gym-id "BreakoutNoFrameskip-v4" \

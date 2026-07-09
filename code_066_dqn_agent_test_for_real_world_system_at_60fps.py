@@ -2,6 +2,8 @@
 
 # docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
 
+# docker run -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/ttyUSB1:/dev/ttyUSB1:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
+
 # action 0 needs wait time while other keys have physical hold time which cannot be changed by software
 # human player won't wait for the key released, so the below wait time is removed
 # NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
@@ -399,6 +401,8 @@ class DQNAgent:
         
         if args.crop == 1:
             # image = image[105:425, 205:450]
+            cv2.imshow('Original Image', image)
+            cv2.moveWindow('Original Image', 0, 0)
             image = image[REAL_WORLD_INPUT_HEIGHT_TOP:REAL_WORLD_INPUT_HEIGHT_BOTTOM, REAL_WORLD_INPUT_WIDTH_LEFT:REAL_WORLD_INPUT_WIDTH_RIGHT]
 
             if args.forpaper == 1:
@@ -409,7 +413,7 @@ class DQNAgent:
 
         if args.display == 1 and args.forpaper == 0:
             cv2.imshow('Image', image)
-            # cv2.moveWindow('Image', 0, 800)
+            cv2.moveWindow('Image', 800, 0)
             cv2.waitKey(1)
 
         # the code is copied from 
@@ -693,7 +697,7 @@ def send_ser_command(ser, env_id, action):
 
     try:
         message = 'Send ' + command + '\n'
-        print(f"message: {message}")
+        # print(f"message: {message}")
         ser.write(message.encode())
         while True:
             if ser.in_waiting > 0:

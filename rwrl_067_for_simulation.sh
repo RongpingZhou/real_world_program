@@ -56,6 +56,22 @@
 # 56    YarsRevengeNoFrameskip-v4
 # 57    ZaxxonNoFrameskip-v4
 
+# ALGOS: dict[str, type[BaseAlgorithm]] = {
+#     "a2c": A2C,
+#     "ddpg": DDPG,
+#     "dqn": DQN,
+#     "ppo": PPO,
+#     "sac": SAC,
+#     "td3": TD3,
+#     # SB3 Contrib,
+#     "ars": ARS,
+#     "crossq": CrossQ,
+#     "qrdqn": QRDQN,
+#     "tqc": TQC,
+#     "trpo": TRPO,
+#     "ppo_lstm": RecurrentPPO,
+# }
+
 python train.py --algo dqn --env BreakoutNoFrameskip-v4 --seed 37 --n-timesteps 10000000 --tensorboard-log ./runs/
 # python train.py --algo dqn --env ALE/Surround-v5 --seed 37 --eval-freq -1 --n-timesteps 10000000 --tensorboard-log ./runs/
 
