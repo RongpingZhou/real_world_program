@@ -2,6 +2,10 @@
 
 This repository is for the to-be published paper titled "Measure Sim-to-Real Gap: Designing an Affordable Real-World Benchmark Platform for Reinforcement Learning in AIoT Systems"
 
+The link to this paper on the arXiv is as following: https://arxiv.org/abs/2607.10309
+
+15/August/2026: Add the 116 ms keyhold time configuration
+
 9/July/2026: Draft version of README
 
 This repository is from another repository https://github.com/RongpingZhou/rwrl that the author has been working on since 2025.
@@ -30,7 +34,9 @@ These code was used and modified for this project.
 
 The hardware is only tested under Linux
 
-Teensy 4.1 Head
+Teensy 4.1 Head, is avialable from these online sites (this item is available in many online shops, the author just bought from one of these sites):
+
+https://www.pjrc.com/store/teensy41.html
 
 https://core-electronics.com.au/teensy-4-1-headers.html
 
@@ -42,27 +48,27 @@ which was forked from
 
 https://github.com/Flowm/etherkey
 
-USB to serial cable:
+USB to serial cable, is avialable from this online site (this item is available in many online shops, the author just bought from one of these sites):
 
 https://core-electronics.com.au/usb-to-ttl-serial-uart-rs232-adaptor-pl2303hx.html
 
-micro USB cable
+micro USB cable, is avialable from this online site (this item is available in many online shops, the author just bought from one of these sites):
 
 https://www.amazon.com.au/Gopala-Android-Charger-Braided-Charging/dp/B077ZWC2BR/ref=sr_1_15?crid=37HCLJFTP1K2J&dib=eyJ2IjoiMSJ9.oaWdpf_28Urspho_IfJ66WRtd9UoYkK_T_1ZSJz2R3_5NKbCSjjI-bhrcUTUqFLHu0u_N0vjFKy3x2dpAA211c3YVSRRNYyYY9wvFrKzPDJfAT0-pGMJgvwt3jPJl5pWClU21GAZIfiyk96xy5c6eIAZNEhRyE1Vv4Yvvnk-izGGvFU-Q49NiZsRmySOvAJgfff1RrakZOsjm3kqb-rF_nLDnfIuKyiZte-YP8FtFode6OBHZSEogRKhvKsuEZHSdewC6MSPu2q5pzqDVt-BwA3giEQ14-Gn3VNA2ocXE5E.NRiKDRQILpuYffU_3P7YmpizF4fkFHaPpSjqFDdv-rc&dib_tag=se&keywords=USB%2Bmicro%2Bto%2BUSB%2BA&qid=1749222379&refinements=p_n_feature_twelve_browse-bin%3A23322471051&rnid=23322469051&s=computers&sprefix=usb%2Bmicro%2Bto%2Busb%2Ba%2Caps%2C265&sr=1-15&th=1
 
-Aperture, focus and zoom manually controllable camera which transmits video via UVC standard, such as the camera from the below link:
+Aperture, focus and zoom manually controllable camera which transmits video via UVC standard, such as the camera from the below link (this item is available in many online shops, the author just bought from one of these sites):
 
 https://www.amazon.com.au/ELP-Lightburn-Varifocal-Webcamera-Conference/dp/B0F3DD6V8M/ref=sr_1_1?crid=17LLC0IYNKTG7&dib=eyJ2IjoiMSJ9.BKGsq-shR9lY8ZYDeLpR9g.dxFBvqA9Hqx-8bhT_OJP5YDbmrjXGzicfgcBY6ZwUxs&dib_tag=se&keywords=ELP+12mp+USB+Camera+Manual+Zoom+Webcam+for+Computer+1080P+120fps+Variable+Focus+Lightburn+Camera+High+Speed+3.6-10mm+3X+Zoom+USB2.0+PC+Cam+Varifocal+USB+Security+Webcamera+for+Video+Conference&qid=1749221425&s=computers&sprefix=elp+12mp+usb+camera+manual+zoom+webcam+for+computer+1080p+120fps+variable+focus+lightburn+camera+high+speed+3.6-10mm+3x+zoom+usb2.0+pc+cam+varifocal+usb+security+webcamera+for+video+conference%2Ccomputers%2C231&sr=1-1
 
-Camera stand:
+Camera stand, (this item is available in many online shops, the author just bought from one of these sites):
 
 https://www.amazon.com.au/OXENDURE-Suspension-Scissor-Compatible-Logitech/dp/B07RNHZYGW/ref=asc_df_B07RNHZYGW/?tag=googleshopdsk-22&linkCode=df0&hvadid=712260569166&hvpos=&hvnetw=g&hvrand=6101658522981671598&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9071771&hvtargid=pla-941430588700&psc=1&mcid=8b421920465c3cbdbf038e092d23ec2d&gad_source=1
 
-USB to DB9/RS232 cable
+USB to DB9/RS232 cable, (this item is available in many online shops, the author just bought from one of these sites):
 
 https://www.amazon.com.au/Cable-Matters-RS-232-Male-Serial/dp/B00J4N9T9C/ref=sr_1_8?crid=2HTETQ8IXOOP4&dib=eyJ2IjoiMSJ9.ncWkgmSce2_EPU1klFLw2a82f3FJlxGjO1j_ccMtA066s2TgXjBt-MBBBGKZM3zo2qaNdSLJUxB3k6tT6gorIKhy8Q2wepuORPMj7mQk3BTstHWIQSkMQDliMBRKvyV1rq9LtS3dfSPytWfC1wIKqEEhbJBf8480OHpjlxA8OuCwdg8Hw_f2i4TFe4t4_xgsaQDZCBNDfqGiqv1xe6aaiYucSWDOmMlSeLKzWkZ_3jVNXkJ6DnoIqqsuKqgOuncOw1XtOvnD7vCrQLQ307lIE5pILHSQjWzIoZ5PW8Hny2s.6M28x9Krt0TemLBet5CD6V7NaPCZZhuiehl5cGjb-Vk&dib_tag=se&keywords=usb%2Bto%2Brs232&qid=1749219557&s=computers&sprefix=USB%2Bto%2Brs%2Ccomputers%2C273&sr=1-8&th=1
 
-Null modem
+Null modem, (this item is available in many online shops, the author just bought from one of these sites):
 
 https://www.amazon.com.au/Dcnhfdsw-Serial-Connection-Converter-Accessory/dp/B0GXLHDRND/ref=sr_1_2_sspa?crid=ARTV0QC544CM&dib=eyJ2IjoiMSJ9.uyh6KazHAOPnjF8W5YyR_LO2nCKEazWpzBueG4n2b9wM5HkvK9Z6YnsXeTPAxNydhuv8QKOXbbNYz67fY3mlBDD65z213YAiX2-HypHKpr4u0dzUncfCijd59We6ydDmtTNVhRZepEaMd1pJrW0hRf4TW8MWmQVt__nM8Bhxit1KEdS7BoseVgdatxa73xSqJtoV1pY0Vr0C9sqG-7j6AH-BoYNXgZsLwnZj0upC2qnm7iIH2kSw1KfKP_ws1CyOmxyizxBG8_x_8hqQs47U37TYnxA6fbvqLSEveekDUjs.ce_api3XdlRqLeg7uH00Xumf-Yr2H1gUCNSJgXP0_Bw&dib_tag=se&keywords=null+modem&qid=1783443492&sprefix=null+modem%2Caps%2C242&sr=8-2-spons&sp_csd=d2lkZ2V0TmFtZT1zcF9hdGY&psc=1
 
@@ -336,7 +342,11 @@ window_y = 80 # you change it to change the game window position
 # use this program to adjust camera position, aperture, zoom, focus 
 # to ensure to the game window is in the centre of the original field of view
 # change the below variables in 
+# "code_065_dqn_agent_for_real_world_system_at_60fps.py"
 # "code_066_dqn_agent_test_for_real_world_system_at_60fps.py"
+# and
+# "code_069_dqn_agent_for_real_world_system_at_60fps.py"
+# "code_070_dqn_agent_test_for_real_world_system_at_60fps.py"
 # to fine tune the cropped image
 REAL_WORLD_INPUT_HEIGHT_TOP = 105 # you can change it to fine tune the position
 REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425 # you can change it to fine tune the position
@@ -358,7 +368,10 @@ REAL_WORLD_INPUT_WIDTH_RIGHT = 450 # you can change it to fine tune the position
 ```shell
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
+# this program is for 66 ms key-press duration
 ./rwrl_065_fps_training.sh
+# or running the below program, this program is for 116 ms key-press duration
+./rwrl_069_fps_training.sh
 ```
 
 ```shell
@@ -401,7 +414,10 @@ tensorboard --logdir ./runs/
 ```shell
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
+# this program is for 66 ms key-press duration
 ./rwrl_065_fps_test.sh
+# or running this program, this program is for 116 ms key-press duration
+./rwrl_070_test.sh
 ```
 
 ```shell

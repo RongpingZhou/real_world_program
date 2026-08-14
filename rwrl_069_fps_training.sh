@@ -1,0 +1,11 @@
+python code_069_dqn_agent_for_real_world_system_at_60fps.py \
+    --gym-id "BreakoutNoFrameskip-v4" \
+    --gym-id "BreakoutNoFrameskip-v4" \
+    --max-episode-steps 60000 \
+    --checkpoint-dir "./checkpoints" \
+    --training 1 \
+    --test 0 \
+    --cuda False \
+    --fps 60 \
+    --seed 37 \
+    --crop 1

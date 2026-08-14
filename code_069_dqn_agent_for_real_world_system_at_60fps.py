@@ -128,7 +128,11 @@ IMAGE_ROWS = 84
 IMAGE_COLS = 84
 # SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.067 # elite typist speed
 SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.117 # mean typist speed
+EYES_PERCEPTION_TIME = 0.0167 # 1/60 seconds
+FRAME_DURATION_TIME = 0.0167 # 1/60 seconds
 print(f"SLIGHTLY_MORE_THAN_KEY_HOLD_TIME: {SLIGHTLY_MORE_THAN_KEY_HOLD_TIME} seconds")
+print(f"EYES_PERCEPTION_TIME: {EYES_PERCEPTION_TIME} seconds")
+print(f"FRAME_DURATION_TIME: {FRAME_DURATION_TIME} seconds")
 OFFSET = 0.2 # to capture the frame after the key has pressed for 0.2 * hold time, to make sure the frame has the effect of the key press
 
 VIDEO_WIDTH = 640
@@ -623,16 +627,6 @@ def send_ser_command(ser, env_id, action):
 
     command = commands_dict.get((env_id, action))
     
-    # match action:
-    #     case 0:
-    #         return
-    #     case 1:
-    #         command = '{' + 'space' + '}'
-    #     case 2:
-    #         command = '{' + 'right' + '}'
-    #     case 3:
-    #         command = '{' + 'left' + '}'
-
     try:
         message = 'Send ' + command + '\n'
         ser.write(message.encode())
@@ -649,6 +643,72 @@ def send_ser_command(ser, env_id, action):
         print(f"Error: {e}")
 
 # End of Hardware emulated keyboard functions
+
+stop_kbthread = False
+
+class KeyboardThread(threading.Thread):
+
+    def __init__(self, port, baudrate, env_id):
+        super().__init__(daemon=True)
+        self.action = 0
+        self.current_action = None
+        self.press_key = False
+        self.key_released = True
+        self.pressed_time = None
+        self.env_id = env_id
+        self.steps = 0
+        self.ser = configure_serial(port, baudrate)
+        message = '\x11'
+        send_data(self.ser, message)
+        time.sleep(0.1)
+        message = "1"
+        send_data(self.ser, message)
+        time.sleep(0.1)
+        print("end of sending data")
+        self.ser.flush()
+        
+    def run(self):
+
+        global stop_kbthread
+        global start_time
+
+        try:
+            while not stop_kbthread:
+                if self.key_released and self.press_key:
+                    self.current_action = self.action
+                    self.pressed_time = time.time()
+                    # print(f"Sending action: {self.current_action}")
+                    send_ser_command(self.ser, self.env_id, self.current_action)
+                    self.press_key = False
+                    self.key_released = False
+                if self.current_action == 0 and not self.key_released and not self.press_key:
+                    # For action 0, we don't wait for a release signal, just mark it as released
+                    time.sleep(SLIGHTLY_MORE_THAN_KEY_HOLD_TIME)  # Wait for the hold time
+                    self.key_released = True
+                    self.steps += 1
+                    # print(f"Action {self.current_action} sent and marked as released.")
+                if self.ser.in_waiting > 0:
+                    response = receive_data(self.ser)
+                    # if response:
+                    #     print(f"Received: {response}")
+                    if response == 'Released':
+                        self.key_released = True
+                        self.steps += 1
+                        # print(f"Action {self.current_action} from key pressed to key released: {time.time() - self.pressed_time:.5f} seconds")
+                        # print(f"Next action: {self.action}")
+        except serial.SerialException as e:
+            print(f"Error: {e}")
+        finally:
+            if self.ser and self.ser.isOpen():
+                self.ser.close()
+                print("KeyboardThread run: Serial port is closed.")
+
+    def stop(self):
+        global stop_kbthread
+        stop_kbthread = True
+        if self.ser and self.ser.isOpen():
+            self.ser.close()
+            print("KeyboardThread stop: Serial port is closed.")
 
 dictionary = {}
 dictionary["score"] = 0
@@ -678,6 +738,7 @@ class SerialThread(threading.Thread):
             while True:
                 if self.receiver.in_waiting > 0:
                     signal = self.receiver.read(self.receiver.in_waiting)
+                    print(f"Received signal: {signal}")
                     if signal == b'READY\n':
                         print("Handshake signal received.")
                         self.receiver.write(b'ACK\n')
@@ -989,25 +1050,32 @@ def main():
     set_random_seed(args.seed)
     
     global stop_thread
+    
+    global stop_kbthread
 
     # serial port number based on the system setting
     port = '/dev/ttyUSB0'
     # baud rate for hardware emulated keyboard
     baudrate = 57600
+    env_id = get_env_id(args.gym_id)
 
-    # serial port configuration
-    ser = configure_serial(port, baudrate)
-    time.sleep(0.5)
+    # Start keyboard thread
+    hwemulatedkbd = KeyboardThread(port=port, baudrate=baudrate, env_id=env_id)
+    hwemulatedkbd.start()
+    
+    # # serial port configuration
+    # ser = configure_serial(port, baudrate)
+    # time.sleep(0.5)
 
-    # make sure we're in Command mode
-    # send ctrl-Q, then 1
-    message = '\x11'
-    send_data(ser, message)
-    time.sleep(0.1)
-    message = "1"
-    send_data(ser, message)
-    time.sleep(0.1)
-    print("end of sending data")
+    # # make sure we're in Command mode
+    # # send ctrl-Q, then 1
+    # message = '\x11'
+    # send_data(ser, message)
+    # time.sleep(0.1)
+    # message = "1"
+    # send_data(ser, message)
+    # time.sleep(0.1)
+    # print("end of sending data")
 
     # Initialize training variables
     EPISODE = 0
@@ -1035,7 +1103,6 @@ def main():
 
     print("Using CNN model")
     env = gym.make(args.gym_id, render_mode="rgb_array")
-    env_id = get_env_id(args.gym_id)
     input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
 
     obs_format = cam.obs_format
@@ -1100,27 +1167,34 @@ def main():
         noops = env.unwrapped.np_random.integers(1, NOOP_MAX + 1)
         assert noops > 0, "noops should be > 0"
         i = 0
-        NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
-        while (time.time() - noops_time) < NO_OP_TIME:
-            if i//skip == i/skip:
-                send_ser_command(ser, env_id, 0)
-            time.sleep(SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip * OFFSET)
+        key_pressed = False
+        # NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
+        # NO_OP_TIME = float(noops) * (FRAME_DURATION_TIME/EYES_PERCEPTION_TIME)
+        NO_OPS = int(float(noops) * (FRAME_DURATION_TIME/EYES_PERCEPTION_TIME))
+        # print(f"noops: {noops}, NO_OPS: {NO_OPS}, stop_kbthread: {stop_kbthread}, stop_thread: {stop_thread}")
+        while not hwemulatedkbd.key_released:
+            pass
+        hwemulatedkbd.action = 0
+        if hwemulatedkbd.key_released:
+            hwemulatedkbd.press_key = True        
+        # while (time.time() - noops_time) < NO_OP_TIME:
+        while i < NO_OPS:
+            time.sleep(EYES_PERCEPTION_TIME * OFFSET)
             stroke_time = time.time()
             observe()
             if not data_queue.empty():
                 terminated, truncated, _, lives_after, reward = process_serial_data()
             score += reward
-            steps += 1
-            frames_num += 1
-            i += 1
             if truncated or terminated:
                 break
-            while (time.time() - stroke_time) < (SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * (1-OFFSET):
+            while (time.time() - stroke_time) < (EYES_PERCEPTION_TIME) * (1-OFFSET):
                 pass
-        # action 0 needs wait time while other keys have physical hold time which cannot be changed by software
-        while (time.time() - noops_time) < NO_OP_TIME:
-            pass
+            frames_num += 1
+            i += 1
         wait_environment_ready()
+        while not hwemulatedkbd.key_released:
+            pass
+        steps = hwemulatedkbd.steps
 
     def action_not_in_the_loop():
         nonlocal obs
@@ -1135,38 +1209,47 @@ def main():
         nonlocal terminated
         nonlocal truncated
         
-        send_ser_command(ser, env_id, episode_reset_action)
-        skip_time = time.time()
-        i = 0
-        while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-            if i >= skip:
-                while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                    pass
-                break
+        # send_ser_command(ser, env_id, episode_reset_action)
+        while not hwemulatedkbd.key_released:
+            pass
+        hwemulatedkbd.action = episode_reset_action
+        hwemulatedkbd.press_key = True
+        # key_pressed_time = time.time()
+        # EYES_PERCEPTION_TIME is always faster than the key hold time, we use this time to ensure the key is pressed
+        time.sleep((EYES_PERCEPTION_TIME) * OFFSET)
+        # time.sleep((SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * OFFSET)
+        stroke_time = time.time()
+        observe()
+        reward = 0.0
+        if not data_queue.empty():
+            terminated, truncated, _, lives_after, reward = process_serial_data()
+        score += reward
+        frames_num += 1
+        obs_buffer[:-1] = obs_buffer[1:]
+        obs_buffer[-1] = obs
+        while (time.time() - stroke_time) < (EYES_PERCEPTION_TIME) * (1-OFFSET):
+            pass
+        steps = hwemulatedkbd.steps
+
+        while not hwemulatedkbd.key_released:
             # half of the key hold time for fire action, divided by skip to spread out the frames               
-            time.sleep((SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * OFFSET)
+            time.sleep((EYES_PERCEPTION_TIME) * OFFSET)
+            # time.sleep((SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * OFFSET)
             stroke_time = time.time()
             observe()
             reward = 0.0
             if not data_queue.empty():
                 terminated, truncated, _, lives_after, reward = process_serial_data()
             score += reward
-            steps += 1
             frames_num += 1
-            if i == skip - 2:
-                obs_buffer[0] = obs
-            if i == skip - 1:
-                obs_buffer[1] = obs
-            i += 1
+            obs_buffer[:-1] = obs_buffer[1:]
+            obs_buffer[-1] = obs
             if terminated or truncated:
                 break
-            while (time.time() - stroke_time) < (SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * (1-OFFSET):
+            while (time.time() - stroke_time) < (EYES_PERCEPTION_TIME) * (1-OFFSET):
                 pass
+        steps = hwemulatedkbd.steps
         obs = obs_buffer.max(axis=0)
-        # action 0 needs wait time while other keys have physical hold time which cannot be changed by software
-        if episode_reset_action == 0:
-            while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                pass
         
     def reset_action():
 
@@ -1280,7 +1363,7 @@ def main():
         # DEBUG: Log first model weights
         print(f"\n{'='*70}")
         print(f"Step {total_steps}: DEBUG: After loading checkpoint")
-        print(f"Step {total_steps}: First conv weight sum: {agent.dQ_network.cnn[0].weight.sum().item():.6f}")
+        print(f"Step {total_steps}: First conv weight sum: {agent.dQ_network.features_extractor.cnn[0].weight.sum().item():.6f}")
         print(f"Step {total_steps}: Exploration rate: {agent.exploration_rate:.6f}")
         print(f"Step {total_steps}: Optimizer lr: {agent.optimizer.param_groups[0]['lr']}")
         print(f"{'='*70}\n")
@@ -1356,7 +1439,7 @@ def main():
     truncated = False
     done = terminated or truncated
 
-    torch.save(agent.dQ_network.state_dict(), "saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+    torch.save(agent.dQ_network.state_dict(), "saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
 
     cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
     cv2.moveWindow('Image', 0, 600)
@@ -1451,6 +1534,7 @@ def main():
     o_t = agent.preprocess(obs)
     stacked_o_t[0, -1, :, :] = o_t
     s_t = stacked_o_t.copy()
+
     
     if checkpoint_data is not None:
         print(f"Step {total_steps}: Episode info buffer (last 100 episodes):")
@@ -1492,7 +1576,7 @@ def main():
             )
             
         if total_steps % TEST_STEP_SIZE == 0:
-            torch.save(agent.dQ_network.state_dict(), "saved_models/code_061_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+            torch.save(agent.dQ_network.state_dict(), "saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
 
         if total_steps > MAX_TEST_STEPS and done == True:
             terminated = False
@@ -1501,59 +1585,50 @@ def main():
             pdone = False
             return
                 
+    # if there is no action decision, then the action is 0, which is no-op
+    a_t = 0
+    s_t_tensor = torch.as_tensor(s_t, device=device)
+    if args.training != 0:
+        a_t = agent.get_action_for_training(total_steps=total_steps, state=s_t_tensor, deterministic=False)
+    else:
+        a_t = agent.get_action(s_t_tensor)
+
+    while not hwemulatedkbd.key_released:
+        pass
+    steps = hwemulatedkbd.steps
+
+    if hwemulatedkbd.key_released:
+        hwemulatedkbd.action = a_t
+        hwemulatedkbd.press_key = True
+        s_t_batch = s_t.copy()
+        a_t_batch = np.array([a_t])
+        total_r_t = 0.0
+
     while True:
 
-        s_t_tensor = torch.as_tensor(s_t, device=device)
-
-        if args.training != 0:
-            a_t = agent.get_action_for_training(total_steps=total_steps, state=s_t_tensor, deterministic=False)
-        else:
-            a_t = agent.get_action(s_t_tensor)
-
         # duplicate the atari wrapper MaxAndSkipEnv functionality here
-        total_r_t = 0.0
         terminated = False
         truncated = False
-        send_ser_command(ser, env_id, a_t)
-
-        skip_time = time.time()
-        i = 0
-        while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-            if i >= skip:
-                while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-                    pass
-                break
-            # half of the key hold time for fire action, divided by skip to spread out the frames
-            time.sleep((SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * OFFSET)
-            stroke_time = time.time()
-            observe()
-            reward = 0.0
-            if not data_queue.empty():
-                terminated, truncated, _, lives_after, reward = process_serial_data()
-            if inner_loop_break:
-                break
-            score += reward
-            steps += 1
-            frames_num += 1
-            if i == skip - 2:
-                obs_buffer[0] = obs
-            if i == skip - 1:
-                obs_buffer[1] = obs
-            total_r_t += float(reward)
-            if terminated:
-                done = True
-            i += 1
-            if terminated or truncated:
-                episode_end = True
-                break
-            while (time.time() - stroke_time) < (SLIGHTLY_MORE_THAN_KEY_HOLD_TIME/skip) * (1-OFFSET):
-                pass
+        time.sleep((EYES_PERCEPTION_TIME) * OFFSET)
+        stroke_time = time.time()
+        observe()
+        reward = 0.0
+        if not data_queue.empty():
+            terminated, truncated, _, lives_after, reward = process_serial_data()
         if inner_loop_break:
-            break
-
+            break        
+        score += reward
+        frames_num += 1
+        obs_buffer[:-1] = obs_buffer[1:]
+        obs_buffer[-1] = obs
+        total_r_t += float(reward)
+        if terminated:
+            done = True
+        if terminated or truncated:
+            episode_end = True
         obs = obs_buffer.max(axis=0)
         o_t = agent.preprocess(obs)
-        r_t = np.sign(float(total_r_t))
+
         if 0 < lives_after < lives:
             psudo_episode_end = True
             pdone = True
@@ -1561,12 +1636,13 @@ def main():
                 psudo_episode_end = False
             if done:
                 pdone = False
-        total_steps += 1
-        # human player won't wait for the key released, so the below wait time is removed
-        # while (time.time() - skip_time) < SLIGHTLY_MORE_THAN_KEY_HOLD_TIME:
-        #     pass
-
         if psudo_episode_end or episode_end:
+            while (time.time() - stroke_time) < (EYES_PERCEPTION_TIME) * (1-OFFSET):
+                pass
+            while not hwemulatedkbd.key_released:
+                pass
+
+        if hwemulatedkbd.key_released and (psudo_episode_end or episode_end):
             terminal_stacked_o_t = np.roll(stacked_o_t, shift=-1, axis=1)
             terminal_stacked_o_t[0, -1, :, :] = o_t
 
@@ -1661,90 +1737,106 @@ def main():
 
         stacked_o_t = np.roll(stacked_o_t, shift=-1, axis=1)
         stacked_o_t[0, -1, :, :] = o_t
-        # End of taking action and getting the reward from the environment        
 
-        # Start of updating the replay buffer
-        s_t_batch = s_t.copy()
-        if psudo_episode_end or episode_end:
-            s_t_next_batch = terminal_stacked_o_t.copy()
-        else:
-            s_t_next_batch = stacked_o_t.copy()
-        a_t_batch = np.array([a_t])
-        r_t_batch = np.array([r_t])
-        done_batch = np.array([done or pdone])
-        info_batch = [info]
-
-        agent.replay_buffer.add(s_t_batch, s_t_next_batch, a_t_batch, r_t_batch, done_batch, info_batch)
-        
-        if checkpoint_saved:
-            # Save replay buffer
-            buffer_filename = checkpoint_filename.replace('.pth', '_buffer.pkl')
-            agent.replay_buffer.save_buffer(buffer_filename)
-            print(f"Replay buffer saved to {buffer_filename}")
-            checkpoint_saved = False
-        
         s_t = stacked_o_t.copy()
+        s_t_tensor = torch.as_tensor(s_t, device=device)
+        if args.training != 0:
+            a_t = agent.get_action_for_training(total_steps=total_steps, state=s_t_tensor, deterministic=False)
+        else:
+            a_t = agent.get_action(s_t_tensor)
+
+        while (time.time() - stroke_time) < (EYES_PERCEPTION_TIME) * (1-OFFSET):
+            pass
+        # End of action decision and getting the reward from the environment
+        # action decision within the perception time
+        if hwemulatedkbd.key_released:
+            total_steps += 1
+            r_t = np.sign(float(total_r_t))
+            total_r_t = 0.0
+            if psudo_episode_end or episode_end:
+                s_t_next_batch = terminal_stacked_o_t.copy()
+            else:
+                s_t_next_batch = stacked_o_t.copy()
+            r_t_batch = np.array([r_t])
+            done_batch = np.array([done or pdone])
+            info_batch = [info]
+
+            # Start of updating the replay buffer
+            agent.replay_buffer.add(s_t_batch, s_t_next_batch, a_t_batch, r_t_batch, done_batch, info_batch)
+
+            hwemulatedkbd.action = a_t
+            hwemulatedkbd.press_key = True
+            s_t_batch = s_t.copy()
+            a_t_batch = np.array([a_t])
+
         
-        agent.update_target_network(
-            total_steps=total_steps,
-            target_update_freq=TARGET_UPDATE_INTERVAL
-        )
-        agent._update_current_progress_remaining(total_steps=total_steps, max_timesteps=MAX_TEST_STEPS)
-        agent.exploration_rate = agent.exploration_schedule(agent._current_progress_remaining)
-
-        if psudo_episode_end or episode_end:
-
-            EPISODE += 1
-
-            if EPISODE > 1 and EPISODE % 4 == 0:
-                                        
-                ep_rew_mean = safe_mean([ep_info["r"] for ep_info in ep_info_buffer])
-                ep_len_mean = safe_mean([ep_info["l"] for ep_info in ep_info_buffer])
+            if checkpoint_saved:
+                # Save replay buffer
+                buffer_filename = checkpoint_filename.replace('.pth', '_buffer.pkl')
+                agent.replay_buffer.save_buffer(buffer_filename)
+                print(f"Replay buffer saved to {buffer_filename}")
+                checkpoint_saved = False
                 
-                if len(ep_info_buffer) > 0 and len(ep_info_buffer[0]) > 0:
-                    data_logger.record("rollout/ep_rew_mean", ep_rew_mean)
-                    data_logger.record("rollout/ep_len_mean", ep_len_mean)
-                data_logger.record("rollout/top_score", topscore)
-                data_logger.record("rollout/exploration_rate", agent.exploration_rate)
-                data_logger.record("time/fps", Calculated_FPS)
-                data_logger.record("time/episodes", EPISODE)
-                data_logger.record("time/total_steps", total_steps)
-                data_logger.record("train/loss", loss_val)
-                data_logger.dump(step=total_steps)
-
-        # Training process start after LEARNS_START frames or the end of an episode
-        if args.training != 0 and total_steps > LEARNING_STARTS and total_steps % TRAINING_FREQ == 0:
-            
-            loss_val = agent.training_step(
+            agent.update_target_network(
                 total_steps=total_steps,
-                batch_size=BATCH_SIZE,
-                gamma=GAMMA,
-                episode=EPISODE
+                target_update_freq=TARGET_UPDATE_INTERVAL
             )
+            agent._update_current_progress_remaining(total_steps=total_steps, max_timesteps=MAX_TEST_STEPS)
+            agent.exploration_rate = agent.exploration_schedule(agent._current_progress_remaining)
+
+            if psudo_episode_end or episode_end:
+
+                EPISODE += 1
+
+                if EPISODE > 1 and EPISODE % 4 == 0:
+                                            
+                    ep_rew_mean = safe_mean([ep_info["r"] for ep_info in ep_info_buffer])
+                    ep_len_mean = safe_mean([ep_info["l"] for ep_info in ep_info_buffer])
+                    
+                    if len(ep_info_buffer) > 0 and len(ep_info_buffer[0]) > 0:
+                        data_logger.record("rollout/ep_rew_mean", ep_rew_mean)
+                        data_logger.record("rollout/ep_len_mean", ep_len_mean)
+                    data_logger.record("rollout/top_score", topscore)
+                    data_logger.record("rollout/exploration_rate", agent.exploration_rate)
+                    data_logger.record("time/fps", Calculated_FPS)
+                    data_logger.record("time/episodes", EPISODE)
+                    data_logger.record("time/total_steps", total_steps)
+                    data_logger.record("train/loss", loss_val)
+                    data_logger.dump(step=total_steps)
+
+            # Training process start after LEARNS_START frames or the end of an episode
+            if args.training != 0 and total_steps > LEARNING_STARTS and total_steps % TRAINING_FREQ == 0:
+                
+                loss_val = agent.training_step(
+                    total_steps=total_steps,
+                    batch_size=BATCH_SIZE,
+                    gamma=GAMMA,
+                    episode=EPISODE
+                )
+                
+            if total_steps % TEST_STEP_SIZE == 0:
+                torch.save(agent.dQ_network.state_dict(), "saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
             
-        if total_steps % TEST_STEP_SIZE == 0:
-            torch.save(agent.dQ_network.state_dict(), "saved_models/code_065_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
-        
-        if total_steps > MAX_TEST_STEPS and done == True:
-            terminated = False
-            truncated = False
-            done = False
-            pdone = False
-            break
-            
-        if psudo_episode_end or episode_end:
-            terminated = False
-            truncated = False
-            done = False
-            pdone = False
-            episode_end = False
-            psudo_episode_end = False
-            info: dict = {}
-            o_t[...] = 0
-            obs[...] = 0
-            
-        if inner_loop_break:
-            break
+            if total_steps > MAX_TEST_STEPS and done == True:
+                terminated = False
+                truncated = False
+                done = False
+                pdone = False
+                break
+                
+            if psudo_episode_end or episode_end:
+                terminated = False
+                truncated = False
+                done = False
+                pdone = False
+                episode_end = False
+                psudo_episode_end = False
+                info: dict = {}
+                o_t[...] = 0
+                obs[...] = 0
+                
+            if inner_loop_break:
+                break
 
     print(f"steps: {steps}")
     print(f"info: {info}")
@@ -1763,6 +1855,7 @@ def main():
     print("*"*5 + " Camera resources released.")
     
     env.close()
+    stop_kbthread = True
     stop_thread = True
     thread.stop()
     print("*"*5 + " Thread is closed.")

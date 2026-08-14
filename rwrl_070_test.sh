@@ -1,0 +1,15 @@
+python code_070_dqn_agent_test_for_real_world_system_at_60fps.py \
+    --gym-id "BreakoutNoFrameskip-v4" \
+    --env "BreakoutNoFrameskip-v4" \
+    --max-episode-steps 60000 \
+    --n-episodes 100 \
+    --model 1 \
+    --training 0 \
+    --test 1 \
+    --debug 0 \
+    --cuda False \
+    --display 1 \
+    --fps 60 \
+    --seed 37 \
+    --plot 1 \
+    --crop 1
