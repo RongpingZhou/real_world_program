@@ -124,9 +124,9 @@ pip install gym
 
 ```shell
 # inside docker container, run a test program using huggingface model to see whether the program is working or not
+# ensure to finish a complete run of this program, the first 100 epsisodes are using random policy and the second 100 episodes are using the huggingface model
 cd /rl/real_world_program/
 ./rwrl_068_hf_test.sh
-# ensure to finish a complete run of this program, the first 100 epsisodes are using random policy and the second 100 episodes are using the huggingface model
 ```
 
 ```shell
