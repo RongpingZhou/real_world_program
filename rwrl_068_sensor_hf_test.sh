@@ -60,9 +60,7 @@ python code_068_dqn_agent_test_for_real_world_input_system.py \
     --gym-id "BreakoutNoFrameskip-v4" \
     --env "BreakoutNoFrameskip-v4" \
     --max-episode-steps 60000 \
-    --folder logs \
-    --exp-id 0 \
-    --load-best \
+    --folder rl-trained-agents \
     --model 1 \
     --sensor 1 \
     --play 0 \
