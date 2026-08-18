@@ -307,7 +307,7 @@ Start to run two programs on the agent machine and the game machine respectively
 ```shell
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
-./rwrl_066_hf_fps_test.sh
+./rwrl_070_hf_fps_test.sh
 ```
 
 ```shell
@@ -343,9 +343,6 @@ window_y = 80 # you change it to change the game window position
 # use this program to adjust camera position, aperture, zoom, focus 
 # to ensure to the game window is in the centre of the original field of view
 # change the below variables in 
-# "code_065_dqn_agent_for_real_world_system_at_60fps.py"
-# "code_066_dqn_agent_test_for_real_world_system_at_60fps.py"
-# and
 # "code_069_dqn_agent_for_real_world_system_at_60fps.py"
 # "code_070_dqn_agent_test_for_real_world_system_at_60fps.py"
 # to fine tune the cropped image
@@ -369,9 +366,7 @@ REAL_WORLD_INPUT_WIDTH_RIGHT = 450 # you can change it to fine tune the position
 ```shell
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
-# this program is for 66 ms key-press duration
-./rwrl_065_fps_training.sh
-# or running the below program, this program is for 116 ms key-press duration
+# running the below program, this program is for 116 ms key-press duration
 ./rwrl_069_fps_training.sh
 ```
 
@@ -415,8 +410,6 @@ tensorboard --logdir ./runs/
 ```shell
 # on the agent machine, inside docker container, run a test program using huggingface model to see whether the program is working or not
 cd /rl/real_world_program/
-# this program is for 66 ms key-press duration
-./rwrl_065_fps_test.sh
 # or running this program, this program is for 116 ms key-press duration
 ./rwrl_070_test.sh
 ```
