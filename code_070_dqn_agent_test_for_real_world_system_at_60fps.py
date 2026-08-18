@@ -1311,17 +1311,6 @@ def main():
                  'saved_models/model_updates_dqn_breakout_9000000.pth',
                  'saved_models/model_updates_dqn_breakout_10000000.pth']
         
-        # files = ['saved_models/model_updates_dqn_frostbite_1000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_2000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_3000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_4000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_5000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_6000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_7000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_8000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_9000000.pth',
-        #         'saved_models/model_updates_dqn_frostbite_10000000.pth']
-        
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
        
     if args.model == 3:
@@ -1346,30 +1335,6 @@ def main():
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
         
-        # files = ['saved_models/model_updates_dqn_breakout_0.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_1000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_2000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_3000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_4000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_5000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_6000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_7000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_8000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_9000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_breakout_10000000.pth']
-
-        # files = ['saved_models/model_updates_dqn_ms_pacman_0.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_1000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_2000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_3000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_4000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_5000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_6000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_7000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_8000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_9000000.pth',
-        #          'saved_models/code_065_model_updates_dqn_ms_pacman_10000000.pth']
-
         files = ['saved_models/code_069_model_updates_dqn_breakout_1000000.pth',
                  'saved_models/code_069_model_updates_dqn_breakout_1000000.pth',
                  'saved_models/code_069_model_updates_dqn_breakout_2000000.pth',
