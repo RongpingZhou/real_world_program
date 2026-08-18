@@ -340,7 +340,7 @@ window_y = 80 # you change it to change the game window position
 
 ```shell
 # on the agent machine
-# when running the "./rwrl_066_hf_fps_test.sh",
+# when running the "./rwrl_070_hf_fps_test.sh",
 # the original field of view will show on the screen and the cropped window is also shown on the screen
 # use this program to adjust camera position, aperture, zoom, focus 
 # to ensure to the game window is in the centre of the original field of view
