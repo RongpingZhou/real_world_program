@@ -4,6 +4,8 @@ This repository is for the to-be published paper titled "Measure Sim-to-Real Gap
 
 The link to this paper on the arXiv is as following: https://arxiv.org/abs/2607.10309
 
+19/August/2026: Remove the programs for 66ms keyhold time configuration to align with version 2 of the paper
+
 15/August/2026: Add the 116 ms keyhold time configuration
 
 9/July/2026: Draft version of README
