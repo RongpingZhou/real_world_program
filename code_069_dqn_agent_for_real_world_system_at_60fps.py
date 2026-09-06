@@ -1843,9 +1843,6 @@ def main():
     pygame.quit()
 
     print("end of Training")
-    # if ser and ser.isOpen():
-    #     ser.close()
-    #     print("*"*5 + " Serial port is closed.")
 
     time.sleep(0.5)
 
@@ -1859,6 +1856,12 @@ def main():
     stop_thread = True
     thread.stop()
     print("*"*5 + " Thread is closed.")
+
+    time.sleep(0.5)
+
+    if ser and ser.isOpen():
+        ser.close()
+        print("*"*5 + " Serial port is closed.")
 
     time.sleep(0.5)
     
