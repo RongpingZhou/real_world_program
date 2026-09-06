@@ -1395,7 +1395,7 @@ def main():
                     log_folder = create_filtered_logdir_for_checkpoint(
                         original_logdir=log_folder,
                         checkpoint_step=checkpoint_step,
-                        base_dir="./runs"
+                        base_dir="../data/runs"
                     )
                 else:
                     print(f"Step {total_steps}: Warning: TensorBoard utils not available (missing tensorboard package)")
@@ -1425,7 +1425,7 @@ def main():
     truncated = False
     done = terminated or truncated
 
-    torch.save(agent.dQ_network.state_dict(), "saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+    torch.save(agent.dQ_network.state_dict(), "../data/saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
 
     cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
     cv2.moveWindow('Image', 0, 600)
