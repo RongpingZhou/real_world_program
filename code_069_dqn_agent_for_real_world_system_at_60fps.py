@@ -1424,6 +1424,8 @@ def main():
     terminated = True
     truncated = False
     done = terminated or truncated
+    
+    os.makedirs("../data/saved_models", exist_ok=True)
 
     torch.save(agent.dQ_network.state_dict(), "../data/saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
 
