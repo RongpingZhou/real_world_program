@@ -821,14 +821,14 @@ class SerialThread(threading.Thread):
         finally:
             if self.receiver and self.receiver.isOpen():
                 self.receiver.close()
-                print("Thread: Serial port is closed.")
+                print("SerialThread run: Serial port is closed.")
                 
     def stop(self):
         global stop_thread
         stop_thread = True
-        # if self.receiver and self.receiver.isOpen():
-        #     self.receiver.close()
-        #     print("SerialThread: Serial port is closed.")
+        if self.receiver and self.receiver.isOpen():
+            self.receiver.close()
+            print("SerialThread stop: Serial port is closed.")
 
 # Start the receiver thread
 thread = SerialThread(queue=data_queue, port=port, baudrate=baudrate)
@@ -970,20 +970,6 @@ def main():
     hwemulatedkbd = KeyboardThread(port=port, baudrate=baudrate, env_id=env_id)
     hwemulatedkbd.start()
     
-    # # serial port configuration
-    # ser = configure_serial(port, baudrate)
-    # time.sleep(0.5)
-
-    # # make sure we're in Command mode
-    # # send ctrl-Q, then 1
-    # message = '\x11'
-    # send_data(ser, message)
-    # time.sleep(0.1)
-    # message = "1"
-    # send_data(ser, message)
-    # time.sleep(0.1)
-    # print("end of sending data")
-
     total_steps = 0
     topscore = 0
     skip = FRAMES_SKIP
@@ -1702,7 +1688,7 @@ def main():
     env.close()
     stop_kbthread = True
     stop_thread = True
-    thread.stop()
+    # thread.stop()
     print("*"*5 + " Thread is closed.")
         
     time.sleep(0.5)
