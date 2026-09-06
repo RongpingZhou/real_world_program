@@ -1380,7 +1380,7 @@ def main():
         if log_folder is None or not Path(log_folder).exists():
             # Create new folder if old one doesn't exist
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_folder = f"./runs/{env_id}_resume_{timestamp}"
+            log_folder = f"../data/runs/{env_id}_resume_{timestamp}"
             print(f"Step {total_steps}: Original log folder not found, creating new: {log_folder}")
         else:
             print(f"\n{'='*60}")
@@ -1407,7 +1407,7 @@ def main():
     else:
         # Fresh training - create new log folder
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_folder = f"./runs/{env_id}_{timestamp}"
+        log_folder = f"../data/runs/{env_id}_{timestamp}"
         print(f"Step {total_steps}: Creating new log folder: {log_folder}")
 
     # Store log folder in args for checkpointing
