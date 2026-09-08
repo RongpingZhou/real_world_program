@@ -1,0 +1,59 @@
+# Configuration for code_067_dqn_agent_training_for_real_world_input_system.py
+#
+# These values used to be hard-coded constants at the top of that script; it now
+# loads this file at import time and assigns them to the same UPPER_CASE names.
+# This is the default config; it is the yml next to the script. To run with other
+# values, copy this whole file, edit the copy and pass it with --config:
+#
+#     python code_067_dqn_agent_training_for_real_world_input_system.py \
+#         --gym-id "PongNoFrameskip-v4" --config smoke_test.yml --training 1
+#
+# --config takes an absolute path, or a path relative to the directory python is
+# launched from. See the comments at the top of the script for more examples.
+
+environment:
+  noop_max: 30
+  envs: 0
+  frames_skip: 4
+
+dqn:
+  learning_rate: 1.0e-4
+  buffer_size: 100000  # 100k
+  # Number of steps before starting training.
+  # null means "same as buffer_size", which was the original default.
+  learning_starts: null
+  gamma: 0.99
+  batch_size: 32
+  max_grad_norm: 10.0
+  training_freq: 4  # Train the agent every `training_freq` steps
+  target_update_interval: 1000  # Update the target network every `target_update_interval` steps
+  exploration:
+    fraction: 0.1  # Fraction of entire training period over which the exploration rate is annealed
+    initial_epsilon: 1.0  # Initial value of epsilon in epsilon-greedy exploration
+    final_epsilon: 0.01  # Final value of epsilon in epsilon-greedy exploration
+
+testing:
+  # step_size: 1000000
+  # max_steps: 10000000  # 10 million steps
+  step_size: 500000
+  max_steps: 1000000
+
+observation:
+  image_channels: 4
+  stack_frames: 4
+  image_rows: 84
+  image_cols: 84
+
+video:
+  width: 640
+  height: 480
+  fps: 120
+
+real_world_input:
+  height_top: 90  # 95
+  height_bottom: 410  # 415
+  width_left: 190
+  width_right: 435
+
+misc:
+  sb3_fire_reset: false

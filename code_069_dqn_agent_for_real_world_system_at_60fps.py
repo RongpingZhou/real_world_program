@@ -620,12 +620,14 @@ def send_up_command(ser):
     except serial.SerialException as e:
         print(f"Error: {e}") 
 
-def send_ser_command(ser, env_id, action):
+# def send_ser_command(ser, env_id, action):
+def send_ser_command(ser, commands, action):
     
     if action == 0:
         return  # No action for 0, just return
 
-    command = commands_dict.get((env_id, action))
+    # command = commands_dict.get((env_id, action))
+    command = commands.get(action)
     
     try:
         message = 'Send ' + command + '\n'
@@ -657,6 +659,7 @@ class KeyboardThread(threading.Thread):
         self.pressed_time = None
         self.env_id = env_id
         self.steps = 0
+        self.commands = commands_dict.get(env_id)
         self.ser = configure_serial(port, baudrate)
         message = '\x11'
         send_data(self.ser, message)
@@ -678,7 +681,8 @@ class KeyboardThread(threading.Thread):
                     self.current_action = self.action
                     self.pressed_time = time.time()
                     # print(f"Sending action: {self.current_action}")
-                    send_ser_command(self.ser, self.env_id, self.current_action)
+                    # send_ser_command(self.ser, self.env_id, self.current_action)
+                    send_ser_command(self.ser, self.commands, self.current_action)
                     self.press_key = False
                     self.key_released = False
                 if self.current_action == 0 and not self.key_released and not self.press_key:

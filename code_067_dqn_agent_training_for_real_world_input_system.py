@@ -4,6 +4,44 @@
 
 # docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
 
+# Hyper-parameters and layout constants are read from a yml file (see --config below).
+#
+# Default config, the yml next to this script - works from any working directory:
+#
+# python code_067_dqn_agent_training_for_real_world_input_system.py \
+#     --gym-id "PongNoFrameskip-v4" \
+#     --training 1 \
+#     --checkpoint-dir "./checkpoints" \
+#     --cuda True \
+#     --seed 37
+#
+# Another config file, copy the default yml and edit the values you want:
+#
+# cp code_067_dqn_agent_training_for_real_world_input_system.yml smoke_test.yml
+#
+# python code_067_dqn_agent_training_for_real_world_input_system.py \
+#     --gym-id "PongNoFrameskip-v4" \
+#     --config smoke_test.yml \
+#     --training 1 \
+#     --checkpoint-dir "./checkpoints" \
+#     --cuda True \
+#     --seed 37
+#
+# A yml file in a different folder, --config takes an absolute or a relative path.
+# A relative path is resolved against the directory python is launched from, not
+# against the folder holding this script:
+#
+#     --config /home/wsl/mygit/rwrl_backup/configs/pong.yml   # absolute, works anywhere
+#     --config configs/pong.yml                               # relative to the current directory
+#     --config ../shared_configs/pong.yml                     # relative to the current directory
+#
+# Pass a complete copy of the yml, not only the keys to override, the constants read
+# config["<section>"]["<key>"] directly and a missing key raises a KeyError at startup.
+#
+# Run this script from the repository root. saved_models, checkpoints and runs/ are
+# relative paths as well, so starting it elsewhere fails even when --config is absolute.
+
+
 import time
 import numpy as np
 from collections import deque
@@ -56,6 +94,8 @@ except ImportError:
 import argparse
 from distutils.util import strtobool
 
+import yaml
+
 import ale_py
 gym.register_envs(ale_py)
 # gym.pprint_registry()
@@ -104,6 +144,14 @@ def setup_matplotlib_backend():
 
 matplotlib_backend = setup_matplotlib_backend()
 
+# Hyper-parameters and layout constants live in a yml file rather than in the code,
+# so they can be changed without editing this script. The file next to the script is
+# the default; pass --config to use another one.
+DEFAULT_CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "code_067_dqn_agent_training_for_real_world_input_system.yml",
+)
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gym-id', type=str, default="BreakoutNoFrameskip-v4",
@@ -116,6 +164,8 @@ def parse_args():
         help='specific checkpoint file to resume from (if not specified, will find latest)')
     parser.add_argument('--checkpoint-dir', type=str, default='checkpoints',
         help='directory to save/load checkpoints')
+    parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
+        help='yml file holding the hyper-parameters and layout constants')
     parser.add_argument('--filter-tensorboard', type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help='automatically filter TensorBoard logs when resuming from earlier checkpoint (default: True)')
     parser.add_argument("--max-episode-steps", type=int, default=60000,
@@ -164,41 +214,49 @@ if args.display == 1:
     window_y = 862
     os.environ['SDL_VIDEO_WINDOW_POS'] = f"{window_x},{window_y}"
 
-NOOP_MAX = 30
-ENVS = 0
-FRAMES_SKIP = 4
-LEARNING_RATE = 1e-4
-BUFFER_SIZE = 100_000  # 100k
-LEARNING_STARTS = BUFFER_SIZE  # Number of steps before starting training
-GAMMA = 0.99
-BATCH_SIZE = 32
-MAX_GRAD_NORM = 10.0
-TRAINING_FREQ = 4  # Train the agent every `TRAINING_FREQ` steps
-TARGET_UPDATE_INTERVAL = 1_000  # Update the target network every `TARGET_UPDATE_FREQ` steps
-EXPLORATION_FRACTION = 0.1  # Fraction of entire training period over which the exploration rate is annealed
-EXPLORATION_INITIAL_EPSILON = 1.0  # Initial value of epsilon in epsilon-greedy exploration
-EXPLORATION_FINAL_EPSILON = 0.01  # Final value of epsilon in epsilon-greedy exploration
-TEST_STEP_SIZE =  1_000_000
-MAX_TEST_STEPS = 10_000_000  # 10 million steps
+CONFIG_FILE = args.config
 
-IMAGE_CHANNELS = 4
-STACK_FRAMES = 4
-IMAGE_ROWS = 84
-IMAGE_COLS = 84
+with open(CONFIG_FILE, "r") as config_file:
+    config = yaml.safe_load(config_file)
 
-VIDEO_WIDTH = 640
-VIDEO_HEIGHT = 480
-VIDEO_FPS = 120
+print("config file: ", CONFIG_FILE)
+print("config: ", config)
 
-#95
-REAL_WORLD_INPUT_HEIGHT_TOP = 90
-#415
-REAL_WORLD_INPUT_HEIGHT_BOTTOM = 410
-REAL_WORLD_INPUT_WIDTH_LEFT = 190
-REAL_WORLD_INPUT_WIDTH_RIGHT = 435
+NOOP_MAX = config["environment"]["noop_max"]
+ENVS = config["environment"]["envs"]
+FRAMES_SKIP = config["environment"]["frames_skip"]
 
-# SB3_FIRE_RESET = True
-SB3_FIRE_RESET = False
+LEARNING_RATE = config["dqn"]["learning_rate"]
+BUFFER_SIZE = config["dqn"]["buffer_size"]
+# Number of steps before starting training; null in the yml means "same as BUFFER_SIZE"
+LEARNING_STARTS = BUFFER_SIZE if config["dqn"]["learning_starts"] is None else config["dqn"]["learning_starts"]
+GAMMA = config["dqn"]["gamma"]
+BATCH_SIZE = config["dqn"]["batch_size"]
+MAX_GRAD_NORM = config["dqn"]["max_grad_norm"]
+TRAINING_FREQ = config["dqn"]["training_freq"]  # Train the agent every `TRAINING_FREQ` steps
+TARGET_UPDATE_INTERVAL = config["dqn"]["target_update_interval"]  # Update the target network every `TARGET_UPDATE_FREQ` steps
+EXPLORATION_FRACTION = config["dqn"]["exploration"]["fraction"]  # Fraction of entire training period over which the exploration rate is annealed
+EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]  # Initial value of epsilon in epsilon-greedy exploration
+EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]  # Final value of epsilon in epsilon-greedy exploration
+
+TEST_STEP_SIZE = config["testing"]["step_size"]
+MAX_TEST_STEPS = config["testing"]["max_steps"]
+
+IMAGE_CHANNELS = config["observation"]["image_channels"]
+STACK_FRAMES = config["observation"]["stack_frames"]
+IMAGE_ROWS = config["observation"]["image_rows"]
+IMAGE_COLS = config["observation"]["image_cols"]
+
+VIDEO_WIDTH = config["video"]["width"]
+VIDEO_HEIGHT = config["video"]["height"]
+VIDEO_FPS = config["video"]["fps"]
+
+REAL_WORLD_INPUT_HEIGHT_TOP = config["real_world_input"]["height_top"]
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = config["real_world_input"]["height_bottom"]
+REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input"]["width_left"]
+REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input"]["width_right"]
+
+SB3_FIRE_RESET = config["misc"]["sb3_fire_reset"]
 
 inner_loop_break = False
 
