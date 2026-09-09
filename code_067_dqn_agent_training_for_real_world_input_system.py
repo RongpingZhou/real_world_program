@@ -4,7 +4,10 @@
 
 # docker run --gpus all -u root -ti --rm -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /dev/snd:/dev/snd:rw -v /dev/ttyUSB0:/dev/ttyUSB0:rw -v /dev/video0:/dev/video0:rw -v $(realpath ~/mygit/):/rl/ -e DISPLAY=unix$DISPLAY -p 8888:8888 --privileged zrongping/ubuntu2204_cuda12-4-1_cudnn9-1-0-70-1_drl-pytorch_noah-vega:version.20250608
 
-# Hyper-parameters and layout constants are read from a yml file (see --config below).
+# Hyper-parameters and layout constants are read from real_world_system_config.yml,
+# the yml file shared with code_068, code_069 and code_070 (see --config below).
+# The values that differ between those scripts are listed as named options in that
+# file, and this script reads the ones it runs with by name.
 #
 # Default config, the yml next to this script - works from any working directory:
 #
@@ -17,7 +20,7 @@
 #
 # Another config file, copy the default yml and edit the values you want:
 #
-# cp code_067_dqn_agent_training_for_real_world_input_system.yml smoke_test.yml
+# cp real_world_system_config.yml smoke_test.yml
 #
 # python code_067_dqn_agent_training_for_real_world_input_system.py \
 #     --gym-id "PongNoFrameskip-v4" \
@@ -149,7 +152,7 @@ matplotlib_backend = setup_matplotlib_backend()
 # the default; pass --config to use another one.
 DEFAULT_CONFIG_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "code_067_dqn_agent_training_for_real_world_input_system.yml",
+    "real_world_system_config.yml",
 )
 
 def parse_args():
@@ -222,41 +225,69 @@ with open(CONFIG_FILE, "r") as config_file:
 print("config file: ", CONFIG_FILE)
 print("config: ", config)
 
+# 30
 NOOP_MAX = config["environment"]["noop_max"]
+# 0
 ENVS = config["environment"]["envs"]
+# 4
 FRAMES_SKIP = config["environment"]["frames_skip"]
 
+# 0.0001
 LEARNING_RATE = config["dqn"]["learning_rate"]
+# 100000
 BUFFER_SIZE = config["dqn"]["buffer_size"]
 # Number of steps before starting training; null in the yml means "same as BUFFER_SIZE"
+# 100000
 LEARNING_STARTS = BUFFER_SIZE if config["dqn"]["learning_starts"] is None else config["dqn"]["learning_starts"]
+# 0.99
 GAMMA = config["dqn"]["gamma"]
+# 32
 BATCH_SIZE = config["dqn"]["batch_size"]
+# 10.0
 MAX_GRAD_NORM = config["dqn"]["max_grad_norm"]
-TRAINING_FREQ = config["dqn"]["training_freq"]  # Train the agent every `TRAINING_FREQ` steps
-TARGET_UPDATE_INTERVAL = config["dqn"]["target_update_interval"]  # Update the target network every `TARGET_UPDATE_FREQ` steps
-EXPLORATION_FRACTION = config["dqn"]["exploration"]["fraction"]  # Fraction of entire training period over which the exploration rate is annealed
-EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]  # Initial value of epsilon in epsilon-greedy exploration
-EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]  # Final value of epsilon in epsilon-greedy exploration
+# 4, Train the agent every `TRAINING_FREQ` steps
+TRAINING_FREQ = config["dqn"]["training_freq"]
+# 1000, Update the target network every `TARGET_UPDATE_FREQ` steps
+TARGET_UPDATE_INTERVAL = config["dqn"]["target_update_interval"]
+# 0.1, Fraction of entire training period over which the exploration rate is annealed
+EXPLORATION_FRACTION = config["dqn"]["exploration"]["fraction"]
+# 1.0, Initial value of epsilon in epsilon-greedy exploration
+EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
+# 0.01, Final value of epsilon in epsilon-greedy exploration
+EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
 
-TEST_STEP_SIZE = config["testing"]["step_size"]
-MAX_TEST_STEPS = config["testing"]["max_steps"]
+# 500000
+TEST_STEP_SIZE = config["testing_options"]["short"]["step_size"]
+# 1000000
+MAX_TEST_STEPS = config["testing_options"]["short"]["max_steps"]
 
+# 4
 IMAGE_CHANNELS = config["observation"]["image_channels"]
+# 4
 STACK_FRAMES = config["observation"]["stack_frames"]
+# 84
 IMAGE_ROWS = config["observation"]["image_rows"]
+# 84
 IMAGE_COLS = config["observation"]["image_cols"]
 
+# 640
 VIDEO_WIDTH = config["video"]["width"]
+# 480
 VIDEO_HEIGHT = config["video"]["height"]
+# 120
 VIDEO_FPS = config["video"]["fps"]
 
-REAL_WORLD_INPUT_HEIGHT_TOP = config["real_world_input"]["height_top"]
-REAL_WORLD_INPUT_HEIGHT_BOTTOM = config["real_world_input"]["height_bottom"]
-REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input"]["width_left"]
-REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input"]["width_right"]
+# 90
+REAL_WORLD_INPUT_HEIGHT_TOP = config["real_world_input_options"]["input_system"]["height_top"]
+# 410
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = config["real_world_input_options"]["input_system"]["height_bottom"]
+# 190
+REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input_options"]["input_system"]["width_left"]
+# 435
+REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input_options"]["input_system"]["width_right"]
 
-SB3_FIRE_RESET = config["misc"]["sb3_fire_reset"]
+# False
+SB3_FIRE_RESET = config["sb3_fire_reset"]
 
 inner_loop_break = False
 

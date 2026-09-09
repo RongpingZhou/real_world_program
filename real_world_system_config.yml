@@ -1,0 +1,119 @@
+# Shared configuration for the real world input system scripts:
+#
+#   code_067_dqn_agent_training_for_real_world_input_system.py
+#   code_068_dqn_agent_test_for_real_world_input_system.py
+#   code_069_dqn_agent_for_real_world_system_at_60fps.py
+#   code_070_dqn_agent_test_for_real_world_system_at_60fps.py
+#
+# These values used to be hard-coded constants at the top of those scripts; they now
+# load this file at start up and assign them to the same UPPER_CASE names.
+#
+# Most sections below are read by every script. The values that are not the same in
+# every script are listed once under a *_options section, and each script reads the
+# option it runs with by name. To run with completely different values, copy this
+# whole file, edit the copy and pass it with --config:
+#
+#     python code_067_dqn_agent_training_for_real_world_input_system.py \
+#         --gym-id "PongNoFrameskip-v4" --config smoke_test.yml --training 1
+#
+# --config takes an absolute path, or a path relative to the directory python is
+# launched from. See the comments at the top of the scripts for more examples.
+
+# ---------------------------------------------------------------------------
+# Shared by all four scripts
+# ---------------------------------------------------------------------------
+
+environment:
+  noop_max: 30
+  envs: 0
+  frames_skip: 4
+
+dqn:
+  learning_rate: 1.0e-4
+  buffer_size: 100000  # 100k
+  # Number of steps before starting training.
+  # null means "same as buffer_size", which was the original default.
+  learning_starts: null
+  gamma: 0.99
+  batch_size: 32
+  max_grad_norm: 10.0
+  training_freq: 4  # Train the agent every `training_freq` steps
+  target_update_interval: 1000  # Update the target network every `target_update_interval` steps
+  exploration:
+    fraction: 0.1  # Fraction of entire training period over which the exploration rate is annealed
+    initial_epsilon: 1.0  # Initial value of epsilon in epsilon-greedy exploration
+    final_epsilon: 0.01  # Final value of epsilon in epsilon-greedy exploration
+
+observation:
+  image_channels: 4
+  stack_frames: 4
+  image_rows: 84
+  image_cols: 84
+
+video:
+  width: 640
+  height: 480
+  fps: 120
+
+# ---------------------------------------------------------------------------
+# Options, the values that are not the same in every script.
+# Each option is picked by a script in the per script sections further down.
+# ---------------------------------------------------------------------------
+
+# code_068, code_069 and code_070 read full, code_067 reads short.
+testing_options:
+  full:
+    step_size: 1000000
+    max_steps: 10000000  # 10 million steps
+  short:
+    step_size: 500000
+    max_steps: 1000000
+
+# Each script reads the option named here that matches its own capture setup:
+# code_067 and code_068 use input_system, code_069 and code_070 use at_60fps.
+real_world_input_options:
+  # [90:410, 190:435]
+  input_system:
+    height_top: 90
+    height_bottom: 410
+    width_left: 190
+    width_right: 435
+  # [95:415, 190:435]
+  input_system_shifted:
+    height_top: 95
+    height_bottom: 415
+    width_left: 190
+    width_right: 435
+  # [105:425, 205:450], original position for training
+  at_60fps:
+    height_top: 105
+    height_bottom: 425
+    width_left: 205
+    width_right: 450
+  # [100:420, 205:450], minor change for testing
+  at_60fps_shifted:
+    height_top: 100
+    height_bottom: 420
+    width_left: 205
+    width_right: 450
+
+# Only code_069 and code_070 use these.
+key_timing_options:
+  mean_typist: &key_timing_mean_typist
+    slightly_more_than_key_hold_time: 0.117  # mean typist speed
+    eyes_perception_time: 0.0167  # 1/60 seconds
+    frame_duration_time: 0.0167  # 1/60 seconds
+    # to capture the frame after the key has pressed for offset * hold time,
+    # to make sure the frame has the effect of the key press
+    offset: 0.2
+  elite_typist: &key_timing_elite_typist
+    slightly_more_than_key_hold_time: 0.067  # elite typist speed
+    eyes_perception_time: 0.0167  # 1/60 seconds
+    frame_duration_time: 0.0167  # 1/60 seconds
+    offset: 0.2
+
+# code_069 and code_070 run with the same key timing, so it is set here once for both.
+key_timing: *key_timing_mean_typist
+
+# Only code_067 uses this one.
+sb3_fire_reset: false

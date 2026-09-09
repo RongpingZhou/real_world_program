@@ -8,6 +8,41 @@
 # human player won't wait for the key released, so the below wait time is removed
 # NO_OP_TIME = float(noops/skip) * SLIGHTLY_MORE_THAN_KEY_HOLD_TIME
 
+
+# Hyper-parameters and layout constants are read from real_world_system_config.yml,
+# the yml file shared with code_067, code_068 and code_069 (see --config below).
+# The values that differ between those scripts are listed as named options in that
+# file, and this script reads the ones it runs with by name.
+#
+# Default config, the yml next to this script - works from any working directory:
+#
+# python code_070_dqn_agent_test_for_real_world_system_at_60fps.py \
+#     --gym-id "PongNoFrameskip-v4" \
+#     --seed 37
+#
+# Another config file, copy the default yml and edit the values you want:
+#
+# cp real_world_system_config.yml smoke_test.yml
+#
+# python code_070_dqn_agent_test_for_real_world_system_at_60fps.py \
+#     --gym-id "PongNoFrameskip-v4" \
+#     --config smoke_test.yml \
+#     --seed 37
+#
+# A yml file in a different folder, --config takes an absolute or a relative path.
+# A relative path is resolved against the directory python is launched from, not
+# against the folder holding this script:
+#
+#     --config /home/wsl/mygit/rwrl_backup/configs/pong.yml   # absolute, works anywhere
+#     --config configs/pong.yml                               # relative to the current directory
+#     --config ../shared_configs/pong.yml                     # relative to the current directory
+#
+# Pass a complete copy of the yml, not only the keys to override, the constants read
+# config["<section>"]["<key>"] directly and a missing key raises a KeyError at startup.
+#
+# Run this script from the repository root. saved_models, checkpoints and runs/ are
+# relative paths as well, so starting it elsewhere fails even when --config is absolute.
+
 import time
 import numpy as np
 from collections import deque
@@ -88,49 +123,6 @@ import matplotlib.pyplot as plt
 from huggingface_sb3 import EnvironmentName
 import yaml
 
-NOOP_MAX = 30
-ENVS = 0
-FRAMES_SKIP = 4
-LEARNING_RATE = 1e-4
-BUFFER_SIZE = 100_000  # 100k
-LEARNING_STARTS = BUFFER_SIZE  # Number of steps before starting training
-GAMMA = 0.99
-BATCH_SIZE = 32
-MAX_GRAD_NORM = 10.0
-TRAINING_FREQ = 4  # Train the agent every `TRAINING_FREQ` steps
-TARGET_UPDATE_INTERVAL = 1_000  # Update the target network every `TARGET_UPDATE_FREQ` steps
-EXPLORATION_FRACTION = 0.1  # Fraction of entire training period over which the exploration rate is annealed
-EXPLORATION_INITIAL_EPSILON = 1.0  # Initial value of epsilon in epsilon-greedy exploration
-EXPLORATION_FINAL_EPSILON = 0.01  # Final value of epsilon in epsilon-greedy exploration
-TEST_STEP_SIZE =  1_000_000
-MAX_TEST_STEPS = 10_000_000  # 10 million steps
-
-IMAGE_CHANNELS = 4
-STACK_FRAMES = 4
-IMAGE_ROWS = 84
-IMAGE_COLS = 84
-# SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.067 # elite typist speed
-SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = 0.117 # mean typist speed
-EYES_PERCEPTION_TIME = 0.0167 # 1/60 seconds
-FRAME_DURATION_TIME = 0.0167 # 1/60 seconds
-print(f"SLIGHTLY_MORE_THAN_KEY_HOLD_TIME: {SLIGHTLY_MORE_THAN_KEY_HOLD_TIME} seconds")
-print(f"EYES_PERCEPTION_TIME: {EYES_PERCEPTION_TIME} seconds")
-print(f"FRAME_DURATION_TIME: {FRAME_DURATION_TIME} seconds")
-OFFSET = 0.2 # to capture the frame after the key has pressed for 0.2 * hold time, to make sure the frame has the effect of the key press
-
-VIDEO_WIDTH = 640
-VIDEO_HEIGHT = 480
-VIDEO_FPS = 120
-
-# [105:425, 205:450] oringinal position for training
-# [100:420, 205:450] minor change for testing
-REAL_WORLD_INPUT_HEIGHT_TOP = 105
-# REAL_WORLD_INPUT_HEIGHT_TOP = 100
-#415
-REAL_WORLD_INPUT_HEIGHT_BOTTOM = 425
-# REAL_WORLD_INPUT_HEIGHT_BOTTOM = 420
-REAL_WORLD_INPUT_WIDTH_LEFT = 205
-REAL_WORLD_INPUT_WIDTH_RIGHT = 450
 
 def setup_matplotlib_backend():
     """Configure matplotlib backend based on environment"""
@@ -162,12 +154,22 @@ def setup_matplotlib_backend():
 
 matplotlib_backend = setup_matplotlib_backend()
 
+# Hyper-parameters and layout constants live in a yml file rather than in the code,
+# so they can be changed without editing this script. The file next to the script is
+# the default; pass --config to use another one.
+DEFAULT_CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "real_world_system_config.yml",
+)
+
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--gym-id', type=str, default="BreakoutNoFrameskip-v4",
         help='the id of the gym environment')
+    parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
+        help='yml file holding the hyper-parameters and layout constants')
     parser.add_argument("--env", type=EnvironmentName, default="BreakoutNoFrameskip-v4", 
         help="the environment ID for loading huggingface model, should be the same as --gym-id")
     parser.add_argument("--folder", type=str, default="rl-trained-agents", 
@@ -256,6 +258,88 @@ def parse_args():
 args = parse_args()
 print("args: ", args)
 print(vars(args))
+
+CONFIG_FILE = args.config
+
+with open(CONFIG_FILE, "r") as config_file:
+    config = yaml.safe_load(config_file)
+
+print("config file: ", CONFIG_FILE)
+print("config: ", config)
+
+# 30
+NOOP_MAX = config["environment"]["noop_max"]
+# 0
+ENVS = config["environment"]["envs"]
+# 4
+FRAMES_SKIP = config["environment"]["frames_skip"]
+
+# 0.0001
+LEARNING_RATE = config["dqn"]["learning_rate"]
+# 100000
+BUFFER_SIZE = config["dqn"]["buffer_size"]
+# Number of steps before starting training; null in the yml means "same as BUFFER_SIZE"
+# 100000
+LEARNING_STARTS = BUFFER_SIZE if config["dqn"]["learning_starts"] is None else config["dqn"]["learning_starts"]
+# 0.99
+GAMMA = config["dqn"]["gamma"]
+# 32
+BATCH_SIZE = config["dqn"]["batch_size"]
+# 10.0
+MAX_GRAD_NORM = config["dqn"]["max_grad_norm"]
+# 4, Train the agent every `TRAINING_FREQ` steps
+TRAINING_FREQ = config["dqn"]["training_freq"]
+# 1000, Update the target network every `TARGET_UPDATE_FREQ` steps
+TARGET_UPDATE_INTERVAL = config["dqn"]["target_update_interval"]
+# 0.1, Fraction of entire training period over which the exploration rate is annealed
+EXPLORATION_FRACTION = config["dqn"]["exploration"]["fraction"]
+# 1.0, Initial value of epsilon in epsilon-greedy exploration
+EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
+# 0.01, Final value of epsilon in epsilon-greedy exploration
+EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
+
+# 1000000
+TEST_STEP_SIZE = config["testing_options"]["full"]["step_size"]
+# 10000000
+MAX_TEST_STEPS = config["testing_options"]["full"]["max_steps"]
+
+# 4
+IMAGE_CHANNELS = config["observation"]["image_channels"]
+# 4
+STACK_FRAMES = config["observation"]["stack_frames"]
+# 84
+IMAGE_ROWS = config["observation"]["image_rows"]
+# 84
+IMAGE_COLS = config["observation"]["image_cols"]
+
+# 0.117
+SLIGHTLY_MORE_THAN_KEY_HOLD_TIME = config["key_timing"]["slightly_more_than_key_hold_time"]
+# 0.0167
+EYES_PERCEPTION_TIME = config["key_timing"]["eyes_perception_time"]
+# 0.0167
+FRAME_DURATION_TIME = config["key_timing"]["frame_duration_time"]
+print(f"SLIGHTLY_MORE_THAN_KEY_HOLD_TIME: {SLIGHTLY_MORE_THAN_KEY_HOLD_TIME} seconds")
+print(f"EYES_PERCEPTION_TIME: {EYES_PERCEPTION_TIME} seconds")
+print(f"FRAME_DURATION_TIME: {FRAME_DURATION_TIME} seconds")
+# to capture the frame after the key has pressed for OFFSET * hold time, to make sure the frame has the effect of the key press
+# 0.2
+OFFSET = config["key_timing"]["offset"]
+
+# 640
+VIDEO_WIDTH = config["video"]["width"]
+# 480
+VIDEO_HEIGHT = config["video"]["height"]
+# 120
+VIDEO_FPS = config["video"]["fps"]
+
+# 105
+REAL_WORLD_INPUT_HEIGHT_TOP = config["real_world_input_options"]["at_60fps"]["height_top"]
+# 425
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = config["real_world_input_options"]["at_60fps"]["height_bottom"]
+# 205
+REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input_options"]["at_60fps"]["width_left"]
+# 450
+REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input_options"]["at_60fps"]["width_right"]
 
 if args.display == 1 or args.plot == 1:
     root = tk.Tk()
