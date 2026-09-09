@@ -60,7 +60,7 @@ video:
 # Each option is picked by a script in the per script sections further down.
 # ---------------------------------------------------------------------------
 
-# code_068, code_069 and code_070 read full, code_067 reads short.
+# All four scripts read short. full is the longer schedule they used before.
 testing_options:
   full:
     step_size: 1000000

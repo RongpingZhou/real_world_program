@@ -263,10 +263,10 @@ EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
 # 0.01, Final value of epsilon in epsilon-greedy exploration
 EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
 
+# 500000
+TEST_STEP_SIZE = config["testing_options"]["short"]["step_size"]
 # 1000000
-TEST_STEP_SIZE = config["testing_options"]["full"]["step_size"]
-# 10000000
-MAX_TEST_STEPS = config["testing_options"]["full"]["max_steps"]
+MAX_TEST_STEPS = config["testing_options"]["short"]["max_steps"]
 
 # 4
 IMAGE_CHANNELS = config["observation"]["image_channels"]
