@@ -264,9 +264,9 @@ EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
 EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
 
 # 500000
-TEST_STEP_SIZE = config["testing_options"]["short"]["step_size"]
+TEST_STEP_SIZE = config["testing_options"]["1M"]["step_size"]
 # 1000000
-MAX_TEST_STEPS = config["testing_options"]["short"]["max_steps"]
+MAX_TEST_STEPS = config["testing_options"]["1M"]["max_steps"]
 
 # 4
 IMAGE_CHANNELS = config["observation"]["image_channels"]
@@ -298,13 +298,13 @@ VIDEO_HEIGHT = config["video"]["height"]
 VIDEO_FPS = config["video"]["fps"]
 
 # 105
-REAL_WORLD_INPUT_HEIGHT_TOP = config["real_world_input_options"]["at_60fps"]["height_top"]
+REAL_WORLD_INPUT_HEIGHT_TOP = config["real_world_input_options"]["real_world_system"]["height_top"]
 # 425
-REAL_WORLD_INPUT_HEIGHT_BOTTOM = config["real_world_input_options"]["at_60fps"]["height_bottom"]
+REAL_WORLD_INPUT_HEIGHT_BOTTOM = config["real_world_input_options"]["real_world_system"]["height_bottom"]
 # 205
-REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input_options"]["at_60fps"]["width_left"]
+REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input_options"]["real_world_system"]["width_left"]
 # 450
-REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input_options"]["at_60fps"]["width_right"]
+REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input_options"]["real_world_system"]["width_right"]
 
 root = tk.Tk()
 root.withdraw()  # Hide the root window

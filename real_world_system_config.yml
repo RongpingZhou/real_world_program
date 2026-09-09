@@ -60,38 +60,40 @@ video:
 # Each option is picked by a script in the per script sections further down.
 # ---------------------------------------------------------------------------
 
-# All four scripts read short. full is the longer schedule they used before.
+# The option name is the max_steps it runs to.
+# All four scripts read "1M". "10M" is the longer schedule they used before.
 testing_options:
-  full:
+  "10M":
     step_size: 1000000
     max_steps: 10000000  # 10 million steps
-  short:
+  "1M":
     step_size: 500000
     max_steps: 1000000
 
 # Each script reads the option named here that matches its own capture setup:
-# code_067 and code_068 use input_system, code_069 and code_070 use at_60fps.
+# code_067 and code_068 use real_world_input_system,
+# code_069 and code_070 use real_world_system.
 real_world_input_options:
   # [90:410, 190:435]
-  input_system:
+  real_world_input_system:
     height_top: 90
     height_bottom: 410
     width_left: 190
     width_right: 435
   # [95:415, 190:435]
-  input_system_shifted:
+  real_world_input_system_shifted:
     height_top: 95
     height_bottom: 415
     width_left: 190
     width_right: 435
   # [105:425, 205:450], original position for training
-  at_60fps:
+  real_world_system:
     height_top: 105
     height_bottom: 425
     width_left: 205
     width_right: 450
   # [100:420, 205:450], minor change for testing
-  at_60fps_shifted:
+  real_world_system_shifted:
     height_top: 100
     height_bottom: 420
     width_left: 205
