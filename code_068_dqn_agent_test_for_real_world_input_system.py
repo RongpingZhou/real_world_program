@@ -223,8 +223,8 @@ def parse_args():
     return args
 
 args = parse_args()
-print("args: ", args)
-print(vars(args))
+# print("args: ", args)
+# print(vars(args))
 
 if args.display == 1:
     root = tk.Tk()
@@ -243,8 +243,8 @@ CONFIG_FILE = args.config
 with open(CONFIG_FILE, "r") as config_file:
     config = yaml.safe_load(config_file)
 
-print("config file: ", CONFIG_FILE)
-print("config: ", config)
+# print("config file: ", CONFIG_FILE)
+# print("config: ", config)
 
 # 30
 NOOP_MAX = config["environment"]["noop_max"]
@@ -1098,9 +1098,11 @@ def main():
         print(f"***** Loading the model with the following kwargs: {kwargs}")
         model = ALGOS[algo].load(model_path, custom_objects=custom_objects, device=args.device, **kwargs)
         
-        files = [model_path, model_path]
+        # files = [model_path, model_path]
+        files = [model_path]
         label = "_huggingface"
-        labels = [label +'_0', label +'_1']
+        # labels = [label +'_0', label +'_1']
+        labels = [label +'_1']
         print(f"files: {files}, labels: {labels}")
 
     if args.model == 2:
