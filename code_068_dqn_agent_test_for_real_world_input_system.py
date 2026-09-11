@@ -307,6 +307,15 @@ REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input_options"]["real_world_inp
 # 435
 REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input_options"]["real_world_input_system"]["width_right"]
 
+# the option to read is the env id of the game under test, breakout, amidar, pong, ...
+GAME = get_env_id(args.gym_id)
+# a game or an option that is not listed leaves the list empty, only args.model 2 reads it
+MODEL_FILES = config["model_files"].get(GAME, {}).get("code_068", [])
+# one checkpoint may be written as a single line in the yml, keep it a list either way
+if isinstance(MODEL_FILES, str):
+    MODEL_FILES = [MODEL_FILES]
+print(f"model files for {GAME}: {MODEL_FILES}")
+
 inner_loop_break = False
 
 class MissingKeysToAction(Exception):
@@ -1098,20 +1107,19 @@ def main():
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
 
-        # files = ['saved_models/model_updates_dqn_breakout_0.pth',
-        #          'saved_models/model_updates_dqn_breakout_2000000.pth']
+        files = MODEL_FILES
         
-        files = ['saved_models/model_updates_dqn_breakout_0.pth',
-                 'saved_models/model_updates_dqn_breakout_1000000.pth',
-                 'saved_models/model_updates_dqn_breakout_2000000.pth',
-                 'saved_models/model_updates_dqn_breakout_3000000.pth',
-                 'saved_models/model_updates_dqn_breakout_4000000.pth',
-                 'saved_models/model_updates_dqn_breakout_5000000.pth',
-                 'saved_models/model_updates_dqn_breakout_6000000.pth',
-                 'saved_models/model_updates_dqn_breakout_7000000.pth',
-                 'saved_models/model_updates_dqn_breakout_8000000.pth',
-                 'saved_models/model_updates_dqn_breakout_9000000.pth',
-                 'saved_models/model_updates_dqn_breakout_10000000.pth']
+        # files = ['saved_models/model_updates_dqn_breakout_0.pth',
+        #          'saved_models/model_updates_dqn_breakout_1000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_2000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_3000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_4000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_5000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_6000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_7000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_8000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_9000000.pth',
+        #          'saved_models/model_updates_dqn_breakout_10000000.pth']
         
         # files = ['saved_models/model_updates_dqn_frostbite_1000000.pth',
         #         'saved_models/model_updates_dqn_frostbite_2000000.pth',

@@ -341,6 +341,24 @@ REAL_WORLD_INPUT_WIDTH_LEFT = config["real_world_input_options"]["real_world_sys
 # 450
 REAL_WORLD_INPUT_WIDTH_RIGHT = config["real_world_input_options"]["real_world_system"]["width_right"]
 
+# the option to read is the env id of the game under test, breakout, amidar, pong, ...
+GAME = get_env_id(args.gym_id)
+# a game or an option that is not listed leaves the list empty, only args.model 2 reads it
+MODEL_FILES = config["model_files"].get(GAME, {}).get("code_070", [])
+# one checkpoint may be written as a single line in the yml, keep it a list either way
+if isinstance(MODEL_FILES, str):
+    MODEL_FILES = [MODEL_FILES]
+# a game or an option that is not listed leaves the list empty, only args.model 3 reads it
+MODEL_FILES_CODE_061 = config["model_files"].get(GAME, {}).get("code_061", [])
+# one checkpoint may be written as a single line in the yml, keep it a list either way
+if isinstance(MODEL_FILES_CODE_061, str):
+    MODEL_FILES_CODE_061 = [MODEL_FILES_CODE_061]
+# a game or an option that is not listed leaves the list empty, only args.model 4 reads it
+MODEL_FILES_CODE_069 = config["model_files"].get(GAME, {}).get("code_069", [])
+if isinstance(MODEL_FILES_CODE_069, str):
+    MODEL_FILES_CODE_069 = [MODEL_FILES_CODE_069]
+print(f"model files for {GAME}: {MODEL_FILES}, code_061 {MODEL_FILES_CODE_061}, code_069 {MODEL_FILES_CODE_069}")
+
 if args.display == 1 or args.plot == 1:
     root = tk.Tk()
     root.withdraw()  # Hide the root window
@@ -768,12 +786,14 @@ def send_up_command(ser):
     except serial.SerialException as e:
         print(f"Error: {e}") 
 
-def send_ser_command(ser, env_id, action):
+# def send_ser_command(ser, env_id, action):
+def send_ser_command(ser, commands, action):
     
     if action == 0:
         return  # No action for 0, just return
 
-    command = commands_dict.get((env_id, action))
+    # command = commands_dict.get((env_id, action))
+    command = commands.get(action)
     
     try:
         message = 'Send ' + command + '\n'
@@ -805,6 +825,7 @@ class KeyboardThread(threading.Thread):
         self.pressed_time = None
         self.env_id = env_id
         self.steps = 0
+        self.commands = commands_dict.get(env_id)
         self.ser = configure_serial(port, baudrate)
         message = '\x11'
         send_data(self.ser, message)
@@ -826,7 +847,8 @@ class KeyboardThread(threading.Thread):
                     self.current_action = self.action
                     self.pressed_time = time.time()
                     # print(f"Sending action: {self.current_action}")
-                    send_ser_command(self.ser, self.env_id, self.current_action)
+                    # send_ser_command(self.ser, self.env_id, self.current_action)
+                    send_ser_command(self.ser, self.commands, self.current_action)
                     self.press_key = False
                     self.key_released = False
                 if self.current_action == 0 and not self.key_released and not self.press_key:
@@ -1369,17 +1391,7 @@ def main():
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
         
-        files = ['../data/saved_models/model_updates_dqn_breakout_0.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_1000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_2000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_3000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_4000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_5000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_6000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_7000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_8000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_9000000.pth',
-                 '../data/saved_models/model_updates_dqn_breakout_10000000.pth']
+        files = MODEL_FILES
         
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
        
@@ -1387,17 +1399,7 @@ def main():
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
         
-        files = ['../data/saved_models/code_061_model_updates_dqn_breakout_0.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_1000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_2000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_3000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_4000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_5000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_6000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_7000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_8000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_9000000.pth',
-                 '../data/saved_models/code_061_model_updates_dqn_breakout_10000000.pth']
+        files = MODEL_FILES_CODE_061
         
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
 
@@ -1405,17 +1407,7 @@ def main():
         
         assert args.algo == "dqn", "dqn is the algorithm for the trained model that are being loaded right now"
         
-        files = ['../data/saved_models/code_069_model_updates_dqn_breakout_1000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_1000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_2000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_3000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_4000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_5000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_6000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_7000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_8000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_9000000.pth',
-                 '../data/saved_models/code_069_model_updates_dqn_breakout_10000000.pth']
+        files = MODEL_FILES_CODE_069
                 
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
 

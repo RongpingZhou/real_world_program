@@ -88,10 +88,10 @@ real_world_input_options:
     width_right: 435
   # [105:425, 205:450], original position for training
   real_world_system:
-    height_top: 105
-    height_bottom: 425
-    width_left: 205
-    width_right: 450
+    height_top: 87
+    height_bottom: 423
+    width_left: 190
+    width_right: 448
   # [100:420, 205:450], minor change for testing
   real_world_system_shifted:
     height_top: 100
@@ -119,3 +119,91 @@ key_timing: *key_timing_mean_typist
 
 # Only code_067 uses this one.
 sb3_fire_reset: false
+
+# The checkpoints the test scripts load, per game and then per option.
+# The game name is the env id that evaluation/atari_data.py get_env_id() returns for the
+# --gym-id under test, so BreakoutNoFrameskip-v4 reads breakout, AmidarNoFrameskip-v4
+# reads amidar, and so on. Under it, the option name is the script that reads the list:
+#   code_068  code_068 args.model 2
+#   code_070  code_070 args.model 2
+#   code_061  the checkpoints produced by code_061, code_070 args.model 3
+#   code_069  the checkpoints produced by code_069, code_070 args.model 4
+# A game with a single checkpoint is written the same way, one entry, and is still read
+# as a list. A game or an option that is not listed is read as an empty list.
+model_files:
+  amidar:
+    code_068:
+      - saved_models/model_updates_dqn_amidar_0.pth
+      - saved_models/model_updates_dqn_amidar_1000000.pth
+      - saved_models/model_updates_dqn_amidar_2000000.pth
+      - saved_models/model_updates_dqn_amidar_3000000.pth
+      - saved_models/model_updates_dqn_amidar_4000000.pth
+      - saved_models/model_updates_dqn_amidar_5000000.pth
+      - saved_models/model_updates_dqn_amidar_6000000.pth
+      - saved_models/model_updates_dqn_amidar_7000000.pth
+      - saved_models/model_updates_dqn_amidar_8000000.pth
+      - saved_models/model_updates_dqn_amidar_9000000.pth
+      - saved_models/model_updates_dqn_amidar_10000000.pth
+  asterix:
+    code_068:
+      - saved_models/model_updates_dqn_asterix_0.pth
+  atlantis:
+    code_068:
+      - saved_models/model_updates_dqn_atlantis_0.pth
+      - saved_models/model_updates_dqn_atlantis_1000000.pth
+      - saved_models/model_updates_dqn_atlantis_2000000.pth
+      - saved_models/model_updates_dqn_atlantis_3000000.pth
+      - saved_models/model_updates_dqn_atlantis_4000000.pth
+      - saved_models/model_updates_dqn_atlantis_5000000.pth
+      - saved_models/model_updates_dqn_atlantis_6000000.pth
+      - saved_models/model_updates_dqn_atlantis_7000000.pth
+      - saved_models/model_updates_dqn_atlantis_8000000.pth
+      - saved_models/model_updates_dqn_atlantis_9000000.pth
+      - saved_models/model_updates_dqn_atlantis_10000000.pth
+  breakout:
+    code_068:
+      - saved_models/model_updates_dqn_breakout_0.pth
+      - saved_models/model_updates_dqn_breakout_500000.pth
+    code_070:
+      - ../data/saved_models/model_updates_dqn_breakout_0.pth
+      - ../data/saved_models/model_updates_dqn_breakout_1000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_2000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_3000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_4000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_5000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_6000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_7000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_8000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_9000000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_10000000.pth
+    code_061:
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_0.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_1000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_2000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_3000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_4000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_5000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_6000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_7000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_8000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_9000000.pth
+      - ../data/saved_models/code_061_model_updates_dqn_breakout_10000000.pth
+    code_069:
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_1000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_1000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_2000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_3000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_4000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_5000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_6000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_7000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_8000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_9000000.pth
+      - ../data/saved_models/code_069_model_updates_dqn_breakout_10000000.pth
+  gravitar:
+    code_068:
+      - saved_models/model_updates_dqn_gravitar_0.pth
+  pong:
+    code_068:
+      - saved_models/model_updates_dqn_pong_0.pth
+      - saved_models/model_updates_dqn_pong_50000.pth
