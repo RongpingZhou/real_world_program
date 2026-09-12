@@ -216,6 +216,8 @@ def parse_args():
         help="how many steps to run in one episode in each environment")
     parser.add_argument("--model", type=int, default=4,
         help="model for the agent, 0 is random action, 1 is CNN, 2 is huggingface model, 3 is transformer, 4 is the standard CNN model")
+    parser.add_argument("--random-policy", type=int, default=1,
+        help="the first file is evaluated with random actions as the baseline, 1 runs it, 0 skips it")
     parser.add_argument('--model-file', type=str, default=None,
         help='the model file name for the agent to load')
     parser.add_argument('--buffer-file', type=str, default=None,
@@ -1291,6 +1293,8 @@ def main():
             break
 
     file_num = 0
+    # the first run that produced scores, it starts the stack of results below
+    first_result = True
 
     if args.model == 1:
         env_name: EnvironmentName = args.env
@@ -1412,6 +1416,12 @@ def main():
         labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
 
     for file in files:
+        
+        # file_num 0 is the random policy baseline, --random-policy 0 skips that run
+        if file_num == 0 and args.random_policy == 0:
+            print("skipping the random policy run of ", file)
+            file_num += 1
+            continue
         
         print("file name is ", file)
 
@@ -1673,15 +1683,15 @@ def main():
         file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
         file_path3 = env_id + '-hns-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
         
-        if file_num == 0:
+        if first_result:
             array_for_dict = scores
             array_for_hns = hns_scores
+            first_result = False
         else:
             array_for_dict = np.vstack((array_for_dict, scores))
             array_for_hns = np.vstack((array_for_hns, hns_scores))
         
         np.savez(file_path, array=scores)
-        print("*"*5 + " Test results were saved to ", file_path)
 
         # Load the existing data from the .npz file
         loaded_data = np.load(file_path)
@@ -1695,6 +1705,8 @@ def main():
         average = np.mean(existing_array)
         
         print("Loaded scores min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
+        print("*"*5 + " Test results were saved to ", file_path)
+
         x_data.append(file_num)
         y1_data.append(median)
         y2_data.append(average)
@@ -1710,7 +1722,6 @@ def main():
             plt.show()
 
         np.savez(file_path3, array=hns_scores)
-        print("*"*5 + " Test results (HNS) were saved to ", file_path3)
 
         # Load the existing data from the .npz file
         loaded_data = np.load(file_path3)
@@ -1724,6 +1735,7 @@ def main():
         average = np.mean(existing_array)
         
         print("Loaded HNS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
+        print("*"*5 + " Test results (HNS) were saved to ", file_path3)
         
         x3_data.append(file_num)
         y31_data.append(median)

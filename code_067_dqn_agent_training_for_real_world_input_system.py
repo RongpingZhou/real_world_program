@@ -167,6 +167,8 @@ def parse_args():
         help='specific checkpoint file to resume from (if not specified, will find latest)')
     parser.add_argument('--checkpoint-dir', type=str, default='checkpoints',
         help='directory to save/load checkpoints')
+    parser.add_argument('--checkpoint', type=int, default=1,
+        help='save checkpoints at the test milestones, 0 is not saving, 1 is saving')
     parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
         help='yml file holding the hyper-parameters and layout constants')
     parser.add_argument('--filter-tensorboard', type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
@@ -1027,6 +1029,9 @@ def main():
     test_steps = list(range(TEST_STEP_SIZE, MAX_TEST_STEPS + TEST_STEP_SIZE, TEST_STEP_SIZE))
     
     print(f"Step {total_steps}: test_steps: {test_steps}")
+    # which test milestones are done already, restored below when resuming,
+    # defined here as well so the milestone loop runs with --checkpoint 0 too
+    tested_steps = [0] * len(test_steps)
     ep_info_buffer = deque(maxlen=100)
 
     # Restore training state from checkpoint if resuming
@@ -1034,7 +1039,8 @@ def main():
         EPISODE = checkpoint_data.get('episode', 0)
         total_steps = checkpoint_data.get('total_steps', 0)
         topscore = checkpoint_data.get('topscore', 0)
-        tested_steps = checkpoint_data.get('tested_steps', [0] * len(test_steps))
+        # an old style checkpoint has the key set to None, not missing, so `or` is needed
+        tested_steps = checkpoint_data.get('tested_steps') or [0] * len(test_steps)
         print(f"Step {total_steps}: tested_steps restored: {tested_steps}")
 
         # DEBUG: Log first model weights
@@ -1054,9 +1060,6 @@ def main():
         print(f"Step {total_steps}: Starting at Episode {EPISODE}, Step {total_steps}")
         print(f"Step {total_steps}: Top Score: {topscore}")
         print(f"Step {total_steps}: Exploration Rate: {agent.exploration_rate:.4f}")
-    else:
-        # Fresh training - initialize tested_steps
-        tested_steps = [0] * len(test_steps)
 
     skip = FRAMES_SKIP
     print(f"Step {total_steps}: skip: {skip}")
@@ -1648,34 +1651,35 @@ def main():
                 ep_info = {"r": score, "l": steps, "fps": Calculated_FPS}
                 ep_info_buffer.append(ep_info)
 
-                # Save checkpoint at test milestones
-                for i, (test_step, tested) in enumerate(zip(test_steps, tested_steps)):
-                    if tested == 0 and total_steps >= test_step:
-                        print(f"*** Saving checkpoint at test milestone: Episode {EPISODE}, when Step {total_steps} >= {test_step} ***")
+                # Save checkpoint at test milestones, --checkpoint 0 turns this off
+                if args.checkpoint == 1:
+                    for i, (test_step, tested) in enumerate(zip(test_steps, tested_steps)):
+                        if tested == 0 and total_steps >= test_step:
+                            print(f"*** Saving checkpoint at test milestone: Episode {EPISODE}, when Step {total_steps} >= {test_step} ***")
 
-                        # CRITICAL FIX: Mark as tested BEFORE saving checkpoint
-                        # so the checkpoint contains the correct tested_steps state
-                        tested_steps[i] = 1
+                            # CRITICAL FIX: Mark as tested BEFORE saving checkpoint
+                            # so the checkpoint contains the correct tested_steps state
+                            tested_steps[i] = 1
 
-                        checkpoint_filename = f"{args.checkpoint_dir}/checkpoint_{env_id}_ep_{EPISODE}_step_{total_steps}.pth"
-                        save_checkpoint(
-                            filepath=checkpoint_filename,
-                            agent=agent,
-                            total_steps=total_steps,
-                            episode=EPISODE,
-                            topscore=topscore,
-                            tested_steps=tested_steps,
-                            ep_info_buffer=ep_info_buffer,
-                            env_id=env_id,
-                            args=args,
-                            env=env
-                        )
+                            checkpoint_filename = f"{args.checkpoint_dir}/checkpoint_{env_id}_ep_{EPISODE}_step_{total_steps}.pth"
+                            save_checkpoint(
+                                filepath=checkpoint_filename,
+                                agent=agent,
+                                total_steps=total_steps,
+                                episode=EPISODE,
+                                topscore=topscore,
+                                tested_steps=tested_steps,
+                                ep_info_buffer=ep_info_buffer,
+                                env_id=env_id,
+                                args=args,
+                                env=env
+                            )
 
-                        torch.save(agent.dQ_network.state_dict(),
-                                    f"{args.checkpoint_dir}/model_tests_dqn_{env_id}_ep_{EPISODE}_step_{total_steps}.pth")
+                            torch.save(agent.dQ_network.state_dict(),
+                                        f"{args.checkpoint_dir}/model_tests_dqn_{env_id}_ep_{EPISODE}_step_{total_steps}.pth")
 
-                        print(f"Test milestone {test_step} marked as completed (checkpoint saved at step {total_steps})")
-                        checkpoint_saved = True
+                            print(f"Test milestone {test_step} marked as completed (checkpoint saved at step {total_steps})")
+                            checkpoint_saved = True
 
                 # Noop reset
                 lives = lives_after
