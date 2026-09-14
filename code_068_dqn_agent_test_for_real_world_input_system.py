@@ -50,6 +50,8 @@ sys.path.append("domain/")
 sys.path.append("mybuffer/")
 
 from evaluation.atari_data import get_human_normalized_score, get_env_id
+from evaluation.library import get_interval_estimates
+from evaluation.metrics import aggregate_mean, aggregate_median, aggregate_iqm, aggregate_optimality_gap
 
 from mybuffer.replaybm import ReplayBuffer
 
@@ -59,6 +61,9 @@ from pygame import Surface
 import tkinter as tk
 
 import os
+import re
+import csv
+import json
 
 import gymnasium as gym
 from gymnasium import Env, logger
@@ -146,68 +151,78 @@ def parse_args():
         help='the id of the gym environment')
     parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
         help='yml file holding the hyper-parameters and layout constants')
+    parser.add_argument('--training-steps', type=str, default="1M",
+        help='which option under training_steps in the yml to read, for example 10M, 1M, 500K')
     parser.add_argument("--env", type=EnvironmentName, default="BreakoutNoFrameskip-v4", 
         help="the environment ID for loading huggingface model, should be the same as --gym-id")
     parser.add_argument("--folder", type=str, default="rl-trained-agents", 
         help="Log folder")
     parser.add_argument("--algo", default="dqn", type=str, required=False, choices=list(ALGOS.keys()), 
         help="RL Algorithm")
-    parser.add_argument("-n", "--n-timesteps", default=1000, type=int, 
-        help="number of timesteps")
+    # parser.add_argument("-n", "--n-timesteps", default=1000, type=int, 
+        # help="number of timesteps")
     parser.add_argument("--n-episodes", default=1, type=int, 
         help="number of episodes for evaluation")
-    parser.add_argument("--num-threads", default=-1, type=int, 
-        help="Number of threads for PyTorch (-1 to use default)")
-    parser.add_argument("--n-envs", default=1, type=int, 
-        help="number of environments")
+    # parser.add_argument("--num-threads", default=-1, type=int, 
+        # help="Number of threads for PyTorch (-1 to use default)")
+    # parser.add_argument("--n-envs", default=1, type=int, 
+        # help="number of environments")
     parser.add_argument("--exp-id", default=0, type=int, 
         help="Experiment ID (default: 0: latest, -1: no exp folder)")
-    parser.add_argument("--verbose", default=1, type=int, 
-        help="Verbose mode (0: no output, 1: INFO)")
+    # parser.add_argument("--verbose", default=1, type=int, 
+        # help="Verbose mode (0: no output, 1: INFO)")
     parser.add_argument("--device", default="auto", type=str, 
         help="PyTorch device to be use (ex: cpu, cuda...)")
     parser.add_argument("--load-best", action="store_true", default=False, 
         help="Load best model instead of last model if available")
-    parser.add_argument("--deterministic", action="store_true", default=False, 
-        help="Use deterministic actions")
+    # parser.add_argument("--deterministic", action="store_true", default=False, 
+        # help="Use deterministic actions")
     parser.add_argument("--load-checkpoint", type=int, 
         help="Load checkpoint instead of last model if available, you must pass the number of timesteps corresponding to it",)
     parser.add_argument("--load-last-checkpoint", action="store_true", default=False, 
         help="Load last checkpoint instead of last model if available")
-    parser.add_argument("--stochastic", action="store_true", default=False, 
-        help="Use stochastic actions")
+    # parser.add_argument("--stochastic", action="store_true", default=False, 
+        # help="Use stochastic actions")
     parser.add_argument("--norm-reward", action="store_true", default=False, 
         help="Normalize reward if applicable (trained with ecNormalize)")
-    parser.add_argument("--reward-log", default="", type=str, 
-        help="Where to log reward")
-    parser.add_argument("--gym-packages", type=str, nargs="+", default=[], 
-        help="Additional external Gym environment package modules to import")
-    parser.add_argument("--env-kwargs", type=str, nargs="+", action=StoreDict, 
-        help="Optional keyword argument to pass to the env constructor")
+    # parser.add_argument("--reward-log", default="", type=str, 
+        # help="Where to log reward")
+    # parser.add_argument("--gym-packages", type=str, nargs="+", default=[], 
+        # help="Additional external Gym environment package modules to import")
+    # parser.add_argument("--env-kwargs", type=str, nargs="+", action=StoreDict, 
+        # help="Optional keyword argument to pass to the env constructor")
     parser.add_argument("--custom-objects", action="store_true", default=False, 
         help="Use custom objects to solve loading issues")
-    parser.add_argument("-P", "--progress", action="store_true", default=False, 
-        help="if toggled, display a progress bar using tqdm and rich")
+    # parser.add_argument("-P", "--progress", action="store_true", default=False, 
+        # help="if toggled, display a progress bar using tqdm and rich")
     parser.add_argument("--max-episode-steps", type=int, default=60000,
         help="how many steps to run in one episode in each environment")
     parser.add_argument("--model", type=int, default=4,
         help="model for the agent, 0 is random action, 1 is CNN, 2 is huggingface model, 3 is transformer, 4 is the standard CNN model")
     parser.add_argument("--random-policy", type=int, default=1,
         help="the first file is evaluated with random actions as the baseline, 1 runs it, 0 skips it")
+    parser.add_argument("--bootstrap-reps", type=int, default=50000,
+        help="bootstrap replications for the human normalized score confidence intervals")
+    parser.add_argument("--confidence-interval", type=float, default=0.95,
+        help="coverage of those confidence intervals, 0.95 is a 95%% interval")
+    parser.add_argument("--performance-dir", type=str, default="../data/performance",
+        help="directory the point estimates and confidence intervals are written to")
+    parser.add_argument("--performance-file", type=str, default="hns-estimates.csv",
+        help="the file inside that directory, one file shared by all the games")
     parser.add_argument("--sensor", type=int, default=0,
         help="use sensor or not, 0 is not using sensor, 1 is using sensor")
-    parser.add_argument("--play", type=int, default=0,
-        help="0 is not playing, 1 is playing")
-    parser.add_argument("--training", type=int, default=0,
-        help="0 is not training, 1 is training, 2 is transfer training")
+    # parser.add_argument("--play", type=int, default=0,
+        # help="0 is not playing, 1 is playing")
+    # parser.add_argument("--training", type=int, default=0,
+        # help="0 is not training, 1 is training, 2 is transfer training")
     parser.add_argument("--test", type=int, default=0,
         help="0 is not testing, 1 is testing")
     parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, cuda will be enabled by default")
-    parser.add_argument("--num-steps", type=int, default=5,
-        help="how many steps to run in each environment per update")
-    parser.add_argument("--bptime", type=int, default=0,
-        help="use sensor or not, 0 is not showing back propagation time, 1 is showing time")
+    # parser.add_argument("--num-steps", type=int, default=5,
+        # help="how many steps to run in each environment per update")
+    # parser.add_argument("--bptime", type=int, default=0,
+        # help="use sensor or not, 0 is not showing back propagation time, 1 is showing time")
     parser.add_argument("--fps", type=int, default=300,
         help="frame per second for the environment")
     parser.add_argument("--zoom", type=float, default=1.0,
@@ -250,8 +265,8 @@ with open(CONFIG_FILE, "r") as config_file:
 
 # 30
 NOOP_MAX = config["environment"]["noop_max"]
-# 0
-ENVS = config["environment"]["envs"]
+# # 0
+# ENVS = config["environment"]["envs"]
 # 4
 FRAMES_SKIP = config["environment"]["frames_skip"]
 
@@ -279,10 +294,15 @@ EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
 # 0.01, Final value of epsilon in epsilon-greedy exploration
 EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
 
-# 500000
-TEST_STEP_SIZE = config["testing_options"]["1M"]["step_size"]
-# 1000000
-MAX_TEST_STEPS = config["testing_options"]["1M"]["max_steps"]
+# --training-steps picks one of the options listed under training_steps in the yml
+if args.training_steps not in config["training_steps"]:
+    raise SystemExit(f"--training-steps {args.training_steps} is not in {CONFIG_FILE}, "
+                     f"the options are: {', '.join(config['training_steps'])}")
+
+# # 500000 with the default --training-steps 1M
+# TEST_STEP_SIZE = config["training_steps"][args.training_steps]["step_size"]
+# 1000000 with the default --training-steps 1M
+MAX_TEST_STEPS = config["training_steps"][args.training_steps]["max_steps"]
 
 # 4
 IMAGE_CHANNELS = config["observation"]["image_channels"]
@@ -317,6 +337,191 @@ MODEL_FILES = config["model_files"].get(GAME, {}).get("code_068", [])
 if isinstance(MODEL_FILES, str):
     MODEL_FILES = [MODEL_FILES]
 print(f"model files for {GAME}: {MODEL_FILES}")
+
+def model_label(model_file, file_num):
+    """
+    The name one checkpoint is reported under.
+
+    The random policy run is called random, every other model is named after the number
+    of training steps in its file name, so model_updates_dqn_breakout_500000.pth is
+    500_000 and model_updates_dqn_breakout_1000000.pth is 1_000_000.
+
+    parameters:
+    model_file -- the file this checkpoint is loaded from
+    file_num -- its place in the list, 0 is the random policy baseline
+    return:
+    the label of this checkpoint
+    """
+    if file_num == 0 and args.random_policy == 1:
+        return "random"
+
+    match = re.search(r"_(\d+)\.(pth|zip)$", os.path.basename(model_file))
+    if match:
+        # 500000 reads as 500_000, 1000000 as 1_000_000
+        return f"{int(match.group(1)):_}"
+
+    # nothing to read the steps from, fall back to the name of the file
+    return os.path.splitext(os.path.basename(model_file))[0]
+
+# Point estimates and confidence intervals of the human normalized scores,
+# the four aggregates rliable reports
+AGGREGATE_NAMES = ("Mean", "Median", "IQM", "Optimality gap")
+
+def aggregate_hns(scores):
+    """
+    The four aggregate scores, as the one array get_interval_estimates expects.
+
+    parameters:
+    scores -- a matrix of (num_runs x num_tasks) human normalized scores
+    return:
+    array of mean, median, interquartile mean and optimality gap
+    """
+    return np.array([aggregate_mean(scores),
+                     aggregate_median(scores),
+                     aggregate_iqm(scores),
+                     aggregate_optimality_gap(scores)])
+
+# What the sensor value means: the whole run, training and testing alike, is either
+# in simulation or on the real world input system
+SYSTEM_NAMES = {0: "simulation", 1: "real_world_input"}
+
+def system_name(sensor):
+    """
+    The system a run with this sensor value happens in.
+
+    parameters:
+    sensor -- 0 for simulation, 1 for the real world input system
+    return:
+    the name of that system
+    """
+    return SYSTEM_NAMES.get(sensor, str(sensor))
+
+def model_training_system(model_file):
+    """
+    The system the model under test was trained in.
+
+    code_067 writes a json file next to every model it saves, holding the settings of
+    that training run. Models from before that, or from somewhere else, have no json.
+
+    parameters:
+    model_file -- the .pth file being tested
+    return:
+    simulation or real_world_input as code_067 recorded it, or "unknown" when there
+    is no json to read
+    """
+    info_path = os.path.splitext(model_file)[0] + ".json"
+    try:
+        with open(info_path, "r") as info_file:
+            info = json.load(info_file)
+    except (OSError, ValueError):
+        return "unknown"
+
+    # newer models carry the name, older ones only the sensor value it came from
+    if "system" in info:
+        return info["system"]
+    if "sensor" in info:
+        return system_name(info["sensor"])
+    return "unknown"
+
+def save_hns_estimates(env_id, model_file, label, episodes, point, interval):
+    """
+    Append the estimates of one checkpoint to the file shared by all the games.
+
+    The file is created with its header the first time, every later run and every other
+    game adds rows to it. Each row says which game it is, which system the model was
+    trained in and which system this test ran in, simulation with --sensor 0 or
+    real_world_input with --sensor 1.
+
+    parameters:
+    env_id -- the game, as evaluation/atari_data.py names it
+    model_file -- the .pth file that was tested
+    label -- the checkpoint this row is about
+    episodes -- how many episodes the scores came from
+    point -- the four point estimates, or None when there was nothing to estimate
+    interval -- lower and upper bounds, or None when there is no interval
+    return:
+    the file the row went into, or None when there was nothing to write
+    """
+    if point is None:
+        return None
+
+    os.makedirs(args.performance_dir, exist_ok=True)
+    file_path = os.path.join(args.performance_dir, args.performance_file)
+    write_header = not os.path.exists(file_path)
+
+    header = ["datetime", "gym_id", "env_id", "algo", "model", "model_file",
+              "training_system", "test_system", "episodes",
+              "confidence_level", "bootstrap_reps"]
+    row = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), args.gym_id, env_id, args.algo,
+           label, model_file, model_training_system(model_file), system_name(args.sensor),
+           episodes,
+           args.confidence_interval, args.bootstrap_reps]
+
+    for i, name in enumerate(AGGREGATE_NAMES):
+        key = name.lower().replace(" ", "_")
+        header += [key, key + "_lower", key + "_upper"]
+        row += [point[i],
+                "" if interval is None else interval[0][i],
+                "" if interval is None else interval[1][i]]
+
+    with open(file_path, "a", newline="") as csv_file:
+        csv_writer = csv.writer(csv_file)
+        if write_header:
+            csv_writer.writerow(header)
+        csv_writer.writerow(row)
+
+    print("*"*5 + " HNS estimates were appended to ", file_path)
+    return file_path
+
+def hns_interval_estimates(hns_scores, label, reps=50000, confidence_interval_size=0.95):
+    """
+    Point estimates and confidence intervals of the human normalized scores.
+
+    The scores of the episodes that were just played are used as they are, nothing is
+    written to or read back from disk. The episodes of this game are the runs of a
+    single task, so they go in as a (num_episodes x 1) matrix and the intervals come
+    from the stratified bootstrap.
+
+    parameters:
+    hns_scores -- the human normalized score of every episode of one checkpoint
+    label -- name this checkpoint is reported under
+    reps -- bootstrap replications
+    confidence_interval_size -- coverage of the intervals, 0.95 is a 95 percent interval
+    return:
+    point estimates and intervals, the intervals are None with fewer than two episodes
+    """
+    scores = np.asarray(hns_scores, dtype=np.float64)
+
+    if scores.size == 0:
+        print("No human normalized score to estimate from for " + label)
+        return None, None
+
+    if scores.ndim == 1:
+        scores = scores.reshape(-1, 1)
+
+    if scores.shape[0] < 2:
+        # a bootstrap over a single episode says nothing, report the scores as they are
+        point_estimates = aggregate_hns(scores)
+        print("HNS over 1 episode, no confidence interval from a single run:")
+        for i, name in enumerate(AGGREGATE_NAMES):
+            print(f"  {name:<16} {point_estimates[i]:9.4f}")
+        return point_estimates, None
+
+    point_estimates, interval_estimates = get_interval_estimates(
+        {label: scores},
+        aggregate_hns,
+        reps=reps,
+        confidence_interval_size=confidence_interval_size,
+    )
+    point = point_estimates[label]
+    interval = interval_estimates[label]
+
+    print(f"HNS over {scores.shape[0]} episodes, "
+          f"{confidence_interval_size:.0%} confidence intervals from {reps} bootstrap replications:")
+    for i, name in enumerate(AGGREGATE_NAMES):
+        print(f"  {name:<16} {point[i]:9.4f}   [{interval[0][i]:9.4f}, {interval[1][i]:9.4f}]")
+
+    return point, interval
 
 inner_loop_break = False
 
@@ -1136,7 +1341,7 @@ def main():
         #         'saved_models/model_updates_dqn_frostbite_9000000.pth',
         #         'saved_models/model_updates_dqn_frostbite_10000000.pth']
         
-        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
+        labels = [model_label(model_file, index) for index, model_file in enumerate(files)]
 
     if args.model == 3:
         
@@ -1157,7 +1362,7 @@ def main():
                  'saved_models_real_input/model_updates_dqn_breakout_9000000.pth',
                  'saved_models_real_input/model_updates_dqn_breakout_10000000.pth']
         
-        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
+        labels = [model_label(model_file, index) for index, model_file in enumerate(files)]
         
     for file in files:
         
@@ -1428,14 +1633,13 @@ def main():
         print(f"file_num: {file_num}, labels: {labels}")
         print(f"label: {labels[file_num]}, scores: {scores}")
         file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
-        file_path3 = env_id + '-hns-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
         
         if first_result:
-            array_for_dict = scores
+            array_for_scores = scores
             array_for_hns = hns_scores
             first_result = False
         else:
-            array_for_dict = np.vstack((array_for_dict, scores))
+            array_for_scores = np.vstack((array_for_scores, scores))
             array_for_hns = np.vstack((array_for_hns, hns_scores))
         
         np.savez(file_path, array=scores)
@@ -1468,21 +1672,25 @@ def main():
             plt.pause(0.1)
             plt.show()
 
-        np.savez(file_path3, array=hns_scores)
+        # the human normalized scores are not written to a npz file, everything below
+        # is computed from the scores of the episodes that were just played
+        print("HNS:", hns_scores)
+        min_score = hns_scores.min()
+        max_score = hns_scores.max()
+        median = np.median(hns_scores)
+        average = np.mean(hns_scores)
 
-        # Load the existing data from the .npz file
-        loaded_data = np.load(file_path3)
-        
-        # Retrieve the existing array and datetime
-        existing_array = loaded_data['array']
-        print("Loaded HNS:", existing_array)
-        min_score = existing_array.min()
-        max_score = existing_array.max()
-        median = np.median(existing_array)        
-        average = np.mean(existing_array)
-        
-        print("Loaded HNS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
-        print("*"*5 + " Test results (HNS) were saved to ", file_path3)
+        print("HNS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
+
+        # point estimates and confidence intervals, from those same scores
+        hns_point, hns_interval = hns_interval_estimates(
+            hns_scores,
+            env_id + "-" + labels[file_num],
+            reps=args.bootstrap_reps,
+            confidence_interval_size=args.confidence_interval)
+
+        save_hns_estimates(env_id, file, labels[file_num], hns_scores.size,
+                           hns_point, hns_interval)
         
         x3_data.append(file_num)
         y31_data.append(median)

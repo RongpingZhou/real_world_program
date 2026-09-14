@@ -89,6 +89,12 @@ def parse_args():
         help="use sensor or not, 0 is not using sensor, 1 is using sensor")
     parser.add_argument("--actuator", type=int, default=0,
         help="use actuator or not, 0 is not using actuator, 1 is using hardware emulated keyboard, 2 is using physical keyboard clicker")
+    parser.add_argument("--serial-port", type=str, default="/dev/ttyUSB0",
+        help="serial port the agent is on, used for the handshake")
+    parser.add_argument("--baudrate", type=int, default=115200,
+        help="baud rate of that serial port")
+    parser.add_argument("--handshake-timeout", type=float, default=0.0,
+        help="seconds to wait for each handshake message, 0 waits for ever")
     parser.add_argument("--bptime", type=int, default=0,
         help="use sensor or not, 0 is not showing back propagation time, 1 is showing time")
     parser.add_argument("--crop", type=int, default=0,
@@ -136,6 +142,7 @@ def configure_serial(port, baudrate):
 def receive_data(ser):
     if ser.in_waiting > 0:
         response = ser.readline().decode().strip()
+        note_quit(response)
         return response
     return None
 
@@ -190,6 +197,113 @@ def send_info(ser, info):
                 break
     except serial.SerialException as e:
         print(f"Error: {e}") 
+
+# Handshake with the agent, code_069 while training or code_070 while testing.
+# The agent sends "GAME <gym id>", this script answers "READY" and waits for "ACK"
+GAME_PREFIX = "GAME "
+QUIT_MESSAGE = "QUIT"
+
+# The agent sends QUIT when its run ends or is interrupted, whichever read picks it up
+quit_requested = False
+
+def note_quit(message):
+    """
+    Remember a QUIT from the agent, wherever on the serial port it was read.
+
+    parameters:
+    message -- a line received from the agent
+    return:
+    True when the agent has asked to quit the game
+    """
+    global quit_requested
+    if message and QUIT_MESSAGE in message:
+        quit_requested = True
+        print("The agent asked to quit the game")
+    return quit_requested
+
+def clear_quit(ser):
+    """
+    Forget a QUIT from the run that just ended and drop anything still buffered.
+
+    parameters:
+    ser -- open serial port
+    """
+    global quit_requested
+    quit_requested = False
+    ser.reset_input_buffer()
+
+def check_quit(ser):
+    """
+    Read whatever is waiting on the serial port and look for QUIT.
+
+    parameters:
+    ser -- open serial port
+    return:
+    True when the agent has asked to quit the game
+    """
+    while ser.in_waiting > 0:
+        receive_data(ser)
+    return quit_requested
+
+
+def wait_for_line(ser, timeout=0.0):
+    """
+    Wait for one complete line on the serial port.
+
+    parameters:
+    ser -- open serial port
+    timeout -- seconds to wait, 0 waits for ever
+    return:
+    the line without its line ending, or None when the timeout passed
+    """
+    started = time.time()
+    while True:
+        if ser.in_waiting > 0:
+            line = ser.readline().decode(errors="replace").strip()
+            if line:
+                return line
+        if timeout and (time.time() - started) > timeout:
+            return None
+        time.sleep(0.01)
+
+def handshake_with_agent(ser, timeout=0.0):
+    """
+    Wait for the agent to say which game to run, then READY and ACK.
+
+    parameters:
+    ser -- open serial port
+    timeout -- seconds to wait for each message, 0 waits for ever
+    return:
+    the gym id the agent asked for, or None when the handshake failed
+    """
+    global quit_requested
+    quit_requested = False
+    ser.reset_input_buffer()
+
+    print("Waiting for the game instruction from the agent ...")
+    while True:
+        line = wait_for_line(ser, timeout)
+        if line is None:
+            print("Handshake failed: no game instruction received.")
+            return None
+        if line.startswith(GAME_PREFIX):
+            game_id = line[len(GAME_PREFIX):].strip()
+            break
+        print(f"Waiting for the game instruction, ignoring: {line}")
+
+    print(f"The agent is going to run: {game_id}")
+
+    ser.write(b"READY\n")
+    ser.flush()
+    print("Handshake signal READY sent")
+
+    line = wait_for_line(ser, timeout)
+    if line != "ACK":
+        print(f"Handshake failed, expected ACK but received: {line}")
+        return None
+
+    print("Handshake successful!")
+    return game_id
 
 # End of Hardware emulated keyboard functions
 
@@ -435,24 +549,26 @@ class PlayPlot:
 def main():
 
     if args.actuator == 1:
-        # serial port number based on the system setting
-        port = '/dev/ttyUSB0'
-        # baud rate for serial communication
-        baudrate = 115200
+        # serial port and baud rate of the link to the agent
+        port = args.serial_port
+        baudrate = args.baudrate
         # serial port configuration
         ser = configure_serial(port, baudrate)
 
         time.sleep(0.5)
-        ser.write(b'READY\n')
-        print("Handshake signal sent")
-        time.sleep(1)
-        response = ser.read(ser.in_waiting)
-        print(f"Received: {response}")
-        if response == b'ACK\n':
-            print("Handshake successful!")
-        else:
-            print("Handshake failed!")
+        # the agent leads: it sends the game, this script answers READY and waits for ACK
+        game_id = handshake_with_agent(ser, args.handshake_timeout)
+        if game_id is None:
             return
+
+        # play the game the agent asked for, not the one on the command line
+        if game_id != args.gym_id:
+            print(f"Switching from {args.gym_id} to {game_id}, the game the agent asked for")
+        args.gym_id = game_id
+
+        # start this game with a clean slate, a late QUIT from the previous run would
+        # otherwise end it before it begins
+        clear_quit(ser)
 
     sps_time1 = time.time()
     sps_time2 = time.time()
@@ -596,10 +712,11 @@ def main():
     print(f"game.video_size: {game.video_size}")
 
     # window_x = 50
-    # window_y = screen_height - game.video_size[1] - 120
+    window_x = 800
+    window_y = screen_height - game.video_size[1] - 120
 
-    window_x = 1200
-    window_y = 80
+    # window_x = 1200
+    # window_y = 80
 
     os.environ['SDL_VIDEO_WINDOW_POS'] = f"{window_x},{window_y}"
     game.screen = pygame.display.set_mode(game.video_size, pygame.RESIZABLE)
@@ -739,6 +856,10 @@ def main():
                 i += 1
                 # need to remove in the experiment
 
+        # the agent ends the game, not this script
+        if args.actuator == 1 and check_quit(ser):
+            game.running = False
+
         # process pygame events
         for event in pygame.event.get():
             game.process_event(event)
@@ -759,6 +880,8 @@ def main():
         #     i = 0
         #     cycle_start_time = time.time()
 
+    env.close()
+
     if args.actuator == 1:
         if ser and ser.isOpen():
             message = '{STOP}'
@@ -769,7 +892,14 @@ def main():
     
     pygame.quit()
 
-    quit()
+    # True means the agent asked to quit this game, so wait for the next one it names
+    return quit_requested
 
 if __name__ == "__main__":
-    main()
+    if args.actuator == 1:
+        # the agent decides which game to play and when to quit it, so keep serving
+        # games until this script is stopped or the game ends on its own
+        while main():
+            print("Game quit, waiting for the next instruction from the agent ...")
+    else:
+        main()

@@ -70,6 +70,8 @@ from pygame import Surface
 import tkinter as tk
 
 import os
+import json
+import csv
 
 import gymnasium as gym
 from gymnasium import Env, logger
@@ -169,8 +171,12 @@ def parse_args():
         help='directory to save/load checkpoints')
     parser.add_argument('--checkpoint', type=int, default=1,
         help='save checkpoints at the test milestones, 0 is not saving, 1 is saving')
+    parser.add_argument('--tensorboard-csv', type=int, default=1,
+        help='convert the tensorboard log to a csv file when the training ends, 0 skips it')
     parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
         help='yml file holding the hyper-parameters and layout constants')
+    parser.add_argument('--training-steps', type=str, default="1M",
+        help='which option under training_steps in the yml to read, for example 10M, 1M, 500K')
     parser.add_argument('--filter-tensorboard', type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help='automatically filter TensorBoard logs when resuming from earlier checkpoint (default: True)')
     parser.add_argument("--max-episode-steps", type=int, default=60000,
@@ -258,10 +264,15 @@ EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
 # 0.01, Final value of epsilon in epsilon-greedy exploration
 EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
 
-# 500000
-TEST_STEP_SIZE = config["testing_options"]["1M"]["step_size"]
-# 1000000
-MAX_TEST_STEPS = config["testing_options"]["1M"]["max_steps"]
+# --training-steps picks one of the options listed under training_steps in the yml
+if args.training_steps not in config["training_steps"]:
+    raise SystemExit(f"--training-steps {args.training_steps} is not in {CONFIG_FILE}, "
+                     f"the options are: {', '.join(config['training_steps'])}")
+
+# 500000 with the default --training-steps 1M
+TEST_STEP_SIZE = config["training_steps"][args.training_steps]["step_size"]
+# 1000000 with the default --training-steps 1M
+MAX_TEST_STEPS = config["training_steps"][args.training_steps]["max_steps"]
 
 # 4
 IMAGE_CHANNELS = config["observation"]["image_channels"]
@@ -640,6 +651,106 @@ class DQNAgent:
             polyak_update(self.batch_norm_stats, self.batch_norm_stats_target, 1.0)
             print(f"***** Target network updated at total steps {total_steps}")
 
+def tensorboard_logs_to_csv(log_folder: str, csv_path: str = None) -> str:
+    """
+    Write the scalars of a tensorboard run to a csv file.
+
+    The run directory holds events.out.tfevents files, which only tensorboard reads.
+    This walks the scalars in them and writes one row per point, so the training curves
+    can be read with any csv tool.
+
+    Args:
+        log_folder: the run directory the training logged to
+        csv_path: where to write, by default tensorboard_scalars.csv inside log_folder
+
+    Returns:
+        The path of the csv file, or None when there was nothing to convert.
+    """
+    try:
+        from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+    except ImportError:
+        print("tensorboard is not installed, no csv was written")
+        print("  install it with: pip install tensorboard")
+        return None
+
+    if not os.path.isdir(log_folder):
+        print(f"no tensorboard log directory at {log_folder}")
+        return None
+
+    # size_guidance 0 keeps every point, the default throws most of them away
+    accumulator = EventAccumulator(log_folder, size_guidance={"scalars": 0})
+    accumulator.Reload()
+
+    tags = accumulator.Tags().get("scalars", [])
+    if not tags:
+        print(f"no scalar was logged in {log_folder}, no csv was written")
+        return None
+
+    if csv_path is None:
+        csv_path = os.path.join(log_folder, "tensorboard_scalars.csv")
+
+    points = 0
+    with open(csv_path, "w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["tag", "step", "wall_time", "value"])
+        for tag in sorted(tags):
+            for event in accumulator.Scalars(tag):
+                writer.writerow([tag, event.step, event.wall_time, event.value])
+                points += 1
+
+    print(f"tensorboard log converted: {points} point(s) of {len(tags)} scalar(s) written to {csv_path}")
+    return csv_path
+
+# What the sensor value means: the whole run, training and testing alike, is either
+# in simulation or on the real world input system
+SYSTEM_NAMES = {0: "simulation", 1: "real_world_input"}
+
+def system_name(sensor) -> str:
+    """
+    The system a run with this sensor value happens in.
+
+    Args:
+        sensor: 0 for simulation, 1 for the real world input system
+
+    Returns:
+        The name of that system.
+    """
+    return SYSTEM_NAMES.get(sensor, str(sensor))
+
+def save_model_info(model_path: str, total_steps: int) -> str:
+    """
+    Write what a saved model was trained with, next to the model itself.
+
+    The .pth file holds a bare state dict with no room for metadata, so the settings
+    that matter when the model is tested later go in a json file of the same name.
+    code_068 reads the system this model was trained in from it, simulation with
+    --sensor 0 or real_world_input with --sensor 1.
+
+    Args:
+        model_path: the .pth file that was just written
+        total_steps: the training step the model was saved at
+
+    Returns:
+        The path of the json file.
+    """
+    info = {
+        "gym_id": args.gym_id,
+        "env_id": get_env_id(args.gym_id),
+        "system": system_name(args.sensor),
+        "sensor": args.sensor,
+        "training": args.training,
+        "seed": args.seed,
+        "total_steps": total_steps,
+        "training_steps": args.training_steps,
+        "model_file": model_path,
+        "saved": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    info_path = os.path.splitext(model_path)[0] + ".json"
+    with open(info_path, "w") as info_file:
+        json.dump(info, info_file, indent=1)
+    return info_path
+
 def save_checkpoint(
     filepath: str,
     agent: 'DQNAgent',
@@ -964,7 +1075,9 @@ def main():
     input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
     agent = DQNAgent(env, input_shape=input_shape, device = device, seed =args.seed)
     # save a randomly initialized model for testing loading
-    torch.save(agent.dQ_network.state_dict(), "saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+    model_path = "../data/saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+    torch.save(agent.dQ_network.state_dict(), model_path)
+    save_model_info(model_path, total_steps)
     # Initialize checkpoint-related variables
     checkpoint_data = None
     env_rng_state_to_restore = None  # Will be set if resuming from checkpoint
@@ -1523,7 +1636,9 @@ def main():
 
         # if total_steps % 1000000 == 0:
         if total_steps % TEST_STEP_SIZE == 0:
-            torch.save(agent.dQ_network.state_dict(), "saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")        
+            model_path = "../data/saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            torch.save(agent.dQ_network.state_dict(), model_path)
+            save_model_info(model_path, total_steps)        
         # End of training process
 
         if total_steps > MAX_TEST_STEPS:
@@ -1776,7 +1891,9 @@ def main():
             )
 
         if total_steps % TEST_STEP_SIZE == 0:
-            torch.save(agent.dQ_network.state_dict(), "saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")        
+            model_path = "../data/saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            torch.save(agent.dQ_network.state_dict(), model_path)
+            save_model_info(model_path, total_steps)        
 
         if total_steps > MAX_TEST_STEPS and done == True:
             terminated = False
@@ -1811,6 +1928,10 @@ def main():
     
     env.close()
     print("*"*5 + " Environment is closed.")
+
+    # the training curves are in a tensorboard file, write them out as csv as well
+    if args.tensorboard_csv == 1:
+        tensorboard_logs_to_csv(args.log_folder)
 
     time.sleep(0.5)
     

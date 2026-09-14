@@ -57,18 +57,22 @@ video:
 
 # ---------------------------------------------------------------------------
 # Options, the values that are not the same in every script.
-# Each option is picked by a script in the per script sections further down.
+# Each script reads the option it runs with by name.
 # ---------------------------------------------------------------------------
 
 # The option name is the max_steps it runs to.
 # All four scripts read "1M". "10M" is the longer schedule they used before.
-testing_options:
+training_steps:
   "10M":
     step_size: 1000000
     max_steps: 10000000  # 10 million steps
   "1M":
     step_size: 500000
     max_steps: 1000000
+  "500K":
+    step_size: 500000
+    max_steps: 500000
+
 
 # Each script reads the option named here that matches its own capture setup:
 # code_067 and code_068 use real_world_input_system,
@@ -133,37 +137,37 @@ sb3_fire_reset: false
 model_files:
   amidar:
     code_068:
-      - saved_models/model_updates_dqn_amidar_0.pth
-      - saved_models/model_updates_dqn_amidar_1000000.pth
-      - saved_models/model_updates_dqn_amidar_2000000.pth
-      - saved_models/model_updates_dqn_amidar_3000000.pth
-      - saved_models/model_updates_dqn_amidar_4000000.pth
-      - saved_models/model_updates_dqn_amidar_5000000.pth
-      - saved_models/model_updates_dqn_amidar_6000000.pth
-      - saved_models/model_updates_dqn_amidar_7000000.pth
-      - saved_models/model_updates_dqn_amidar_8000000.pth
-      - saved_models/model_updates_dqn_amidar_9000000.pth
-      - saved_models/model_updates_dqn_amidar_10000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_0.pth
+      - ../data/saved_models/model_updates_dqn_amidar_1000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_2000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_3000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_4000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_5000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_6000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_7000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_8000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_9000000.pth
+      - ../data/saved_models/model_updates_dqn_amidar_10000000.pth
   asterix:
     code_068:
-      - saved_models/model_updates_dqn_asterix_0.pth
+      - ../data/saved_models/model_updates_dqn_asterix_0.pth
   atlantis:
     code_068:
-      - saved_models/model_updates_dqn_atlantis_0.pth
-      - saved_models/model_updates_dqn_atlantis_1000000.pth
-      - saved_models/model_updates_dqn_atlantis_2000000.pth
-      - saved_models/model_updates_dqn_atlantis_3000000.pth
-      - saved_models/model_updates_dqn_atlantis_4000000.pth
-      - saved_models/model_updates_dqn_atlantis_5000000.pth
-      - saved_models/model_updates_dqn_atlantis_6000000.pth
-      - saved_models/model_updates_dqn_atlantis_7000000.pth
-      - saved_models/model_updates_dqn_atlantis_8000000.pth
-      - saved_models/model_updates_dqn_atlantis_9000000.pth
-      - saved_models/model_updates_dqn_atlantis_10000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_0.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_1000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_2000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_3000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_4000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_5000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_6000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_7000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_8000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_9000000.pth
+      - ../data/saved_models/model_updates_dqn_atlantis_10000000.pth
   breakout:
     code_068:
-      - saved_models/model_updates_dqn_breakout_0.pth
-      - saved_models/model_updates_dqn_breakout_500000.pth
+      - ../data/saved_models/model_updates_dqn_breakout_0.pth
+      - ../data/saved_models/model_updates_dqn_breakout_500000.pth
     code_070:
       - ../data/saved_models/model_updates_dqn_breakout_0.pth
       - ../data/saved_models/model_updates_dqn_breakout_1000000.pth
@@ -202,8 +206,8 @@ model_files:
       - ../data/saved_models/code_069_model_updates_dqn_breakout_10000000.pth
   gravitar:
     code_068:
-      - saved_models/model_updates_dqn_gravitar_0.pth
+      - ../data/saved_models/model_updates_dqn_gravitar_0.pth
   pong:
     code_068:
-      - saved_models/model_updates_dqn_pong_0.pth
-      - saved_models/model_updates_dqn_pong_50000.pth
+      - ../data/saved_models/model_updates_dqn_pong_0.pth
+      - ../data/saved_models/model_updates_dqn_pong_50000.pth

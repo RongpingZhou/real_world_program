@@ -60,6 +60,8 @@ sys.path.append("mybuffer/")
 sys.path.append("mylibs/")
 
 from evaluation.atari_data import get_human_normalized_score, get_env_id
+from evaluation.library import get_interval_estimates
+from evaluation.metrics import aggregate_mean, aggregate_median, aggregate_iqm, aggregate_optimality_gap
 
 from mybuffer.replaybm import ReplayBuffer
 from mylibs.commands import commands_dict
@@ -69,6 +71,7 @@ import pygame
 import tkinter as tk
 
 import os
+import csv
 
 import gymnasium as gym
 from gymnasium import Env, logger
@@ -170,6 +173,8 @@ def parse_args():
         help='the id of the gym environment')
     parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
         help='yml file holding the hyper-parameters and layout constants')
+    parser.add_argument('--training-steps', type=str, default="1M",
+        help='which option under training_steps in the yml to read, for example 10M, 1M, 500K')
     parser.add_argument("--env", type=EnvironmentName, default="BreakoutNoFrameskip-v4", 
         help="the environment ID for loading huggingface model, should be the same as --gym-id")
     parser.add_argument("--folder", type=str, default="rl-trained-agents", 
@@ -218,6 +223,14 @@ def parse_args():
         help="model for the agent, 0 is random action, 1 is CNN, 2 is huggingface model, 3 is transformer, 4 is the standard CNN model")
     parser.add_argument("--random-policy", type=int, default=1,
         help="the first file is evaluated with random actions as the baseline, 1 runs it, 0 skips it")
+    parser.add_argument("--bootstrap-reps", type=int, default=50000,
+        help="bootstrap replications for the human normalized score confidence intervals")
+    parser.add_argument("--confidence-interval", type=float, default=0.95,
+        help="coverage of those confidence intervals, 0.95 is a 95%% interval")
+    parser.add_argument("--performance-dir", type=str, default="../data/performance",
+        help="directory the point estimates and confidence intervals are written to")
+    parser.add_argument("--performance-file", type=str, default="hns-estimates.csv",
+        help="the file inside that directory, one file shared by all the games")
     parser.add_argument('--model-file', type=str, default=None,
         help='the model file name for the agent to load')
     parser.add_argument('--buffer-file', type=str, default=None,
@@ -300,10 +313,15 @@ EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
 # 0.01, Final value of epsilon in epsilon-greedy exploration
 EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
 
-# 500000
-TEST_STEP_SIZE = config["testing_options"]["1M"]["step_size"]
-# 1000000
-MAX_TEST_STEPS = config["testing_options"]["1M"]["max_steps"]
+# --training-steps picks one of the options listed under training_steps in the yml
+if args.training_steps not in config["training_steps"]:
+    raise SystemExit(f"--training-steps {args.training_steps} is not in {CONFIG_FILE}, "
+                     f"the options are: {', '.join(config['training_steps'])}")
+
+# 500000 with the default --training-steps 1M
+TEST_STEP_SIZE = config["training_steps"][args.training_steps]["step_size"]
+# 1000000 with the default --training-steps 1M
+MAX_TEST_STEPS = config["training_steps"][args.training_steps]["max_steps"]
 
 # 4
 IMAGE_CHANNELS = config["observation"]["image_channels"]
@@ -372,6 +390,189 @@ if args.display == 1 or args.plot == 1:
     window_y = 80
     os.environ['SDL_VIDEO_WINDOW_POS'] = f"{window_x},{window_y}"
 
+
+def model_label(model_file, file_num):
+    """
+    The name one checkpoint is reported under.
+
+    The random policy run is called random, every other model is named after the number
+    of training steps in its file name, so code_069_model_updates_dqn_breakout_500000.pth
+    is 500_000 and code_069_model_updates_dqn_breakout_1000000.pth is 1_000_000.
+
+    parameters:
+    model_file -- the file this checkpoint is loaded from
+    file_num -- its place in the list, 0 is the random policy baseline
+    return:
+    the label of this checkpoint
+    """
+    if file_num == 0 and args.random_policy == 1:
+        return "random"
+
+    match = re.search(r"_(\d+)\.(pth|zip)$", os.path.basename(model_file))
+    if match:
+        # 500000 reads as 500_000, 1000000 as 1_000_000
+        return f"{int(match.group(1)):_}"
+
+    # nothing to read the steps from, fall back to the name of the file
+    return os.path.splitext(os.path.basename(model_file))[0]
+
+# Point estimates and confidence intervals of the human normalized scores,
+# the four aggregates rliable reports
+AGGREGATE_NAMES = ("Mean", "Median", "IQM", "Optimality gap")
+
+# This script drives the real hardware, so every test it runs happens on the real
+# world system. Only the training side can be simulation or the real system.
+SYSTEM_NAMES = {0: "simulation", 1: "real_world_input"}
+TEST_SYSTEM = "real_world"
+
+def system_name(sensor):
+    """
+    The system a run with this sensor value happens in.
+
+    parameters:
+    sensor -- 0 for simulation, 1 for the real world input system
+    return:
+    the name of that system
+    """
+    return SYSTEM_NAMES.get(sensor, str(sensor))
+
+def model_training_system(model_file):
+    """
+    The system the model under test was trained in.
+
+    code_067 writes a json file next to every model it saves, holding the settings of
+    that training run. Models from before that, or from somewhere else, have no json.
+
+    parameters:
+    model_file -- the .pth file being tested
+    return:
+    simulation or real_world_input as the training recorded it, or "unknown" when there
+    is no json to read
+    """
+    info_path = os.path.splitext(model_file)[0] + ".json"
+    try:
+        with open(info_path, "r") as info_file:
+            info = json.load(info_file)
+    except (OSError, ValueError):
+        return "unknown"
+
+    if "system" in info:
+        return info["system"]
+    if "sensor" in info:
+        return system_name(info["sensor"])
+    return "unknown"
+
+def aggregate_hns(scores):
+    """
+    The four aggregate scores, as the one array get_interval_estimates expects.
+
+    parameters:
+    scores -- a matrix of (num_runs x num_tasks) human normalized scores
+    return:
+    array of mean, median, interquartile mean and optimality gap
+    """
+    return np.array([aggregate_mean(scores),
+                     aggregate_median(scores),
+                     aggregate_iqm(scores),
+                     aggregate_optimality_gap(scores)])
+
+def hns_interval_estimates(hns_scores, label, reps=50000, confidence_interval_size=0.95):
+    """
+    Point estimates and confidence intervals of the human normalized scores.
+
+    The scores of the episodes that were just played are used as they are, nothing is
+    written to or read back from disk. The episodes of this game are the runs of a
+    single task, so they go in as a (num_episodes x 1) matrix and the intervals come
+    from the stratified bootstrap.
+
+    parameters:
+    hns_scores -- the human normalized score of every episode of one checkpoint
+    label -- name this checkpoint is reported under
+    reps -- bootstrap replications
+    confidence_interval_size -- coverage of the intervals, 0.95 is a 95 percent interval
+    return:
+    point estimates and intervals, the intervals are None with fewer than two episodes
+    """
+    scores = np.asarray(hns_scores, dtype=np.float64)
+
+    if scores.size == 0:
+        print("No human normalized score to estimate from for " + label)
+        return None, None
+
+    if scores.ndim == 1:
+        scores = scores.reshape(-1, 1)
+
+    if scores.shape[0] < 2:
+        # a bootstrap over a single episode says nothing, report the scores as they are
+        point_estimates = aggregate_hns(scores)
+        print("HNS over 1 episode, no confidence interval from a single run:")
+        for i, name in enumerate(AGGREGATE_NAMES):
+            print(f"  {name:<16} {point_estimates[i]:9.4f}")
+        return point_estimates, None
+
+    point_estimates, interval_estimates = get_interval_estimates(
+        {label: scores},
+        aggregate_hns,
+        reps=reps,
+        confidence_interval_size=confidence_interval_size,
+    )
+    point = point_estimates[label]
+    interval = interval_estimates[label]
+
+    print(f"HNS over {scores.shape[0]} episodes, "
+          f"{confidence_interval_size:.0%} confidence intervals from {reps} bootstrap replications:")
+    for i, name in enumerate(AGGREGATE_NAMES):
+        print(f"  {name:<16} {point[i]:9.4f}   [{interval[0][i]:9.4f}, {interval[1][i]:9.4f}]")
+
+    return point, interval
+
+def save_hns_estimates(env_id, model_file, label, episodes, point, interval):
+    """
+    Append the estimates of one checkpoint to the file shared by all the games.
+
+    The directory and the file are created the first time, every later run and every
+    other game adds rows to them. Each row says which game it is, which system the
+    model was trained in and which system this test ran in.
+
+    parameters:
+    env_id -- the game, as evaluation/atari_data.py names it
+    model_file -- the .pth file that was tested
+    label -- the checkpoint this row is about
+    episodes -- how many episodes the scores came from
+    point -- the four point estimates, or None when there was nothing to estimate
+    interval -- lower and upper bounds, or None when there is no interval
+    return:
+    the file the row went into, or None when there was nothing to write
+    """
+    if point is None:
+        return None
+
+    os.makedirs(args.performance_dir, exist_ok=True)
+    file_path = os.path.join(args.performance_dir, args.performance_file)
+    write_header = not os.path.exists(file_path)
+
+    header = ["datetime", "gym_id", "env_id", "algo", "model", "model_file",
+              "training_system", "test_system", "episodes",
+              "confidence_level", "bootstrap_reps"]
+    row = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), args.gym_id, env_id, args.algo,
+           label, model_file, model_training_system(model_file), TEST_SYSTEM,
+           episodes, args.confidence_interval, args.bootstrap_reps]
+
+    for i, name in enumerate(AGGREGATE_NAMES):
+        key = name.lower().replace(" ", "_")
+        header += [key, key + "_lower", key + "_upper"]
+        row += [point[i],
+                "" if interval is None else interval[0][i],
+                "" if interval is None else interval[1][i]]
+
+    with open(file_path, "a", newline="") as csv_file:
+        csv_writer = csv.writer(csv_file)
+        if write_header:
+            csv_writer.writerow(header)
+        csv_writer.writerow(row)
+
+    print("*"*5 + " HNS estimates were appended to ", file_path)
+    return file_path
 
 inner_loop_break = False
 
@@ -893,11 +1094,22 @@ start_play = False
 port = '/dev/ttyUSB1'  # serial port number based on the system setting
 baudrate = 115200  # baud rate for serial communication
 
+# Handshake with code_062, which plays the game this script tests on.
+# code_062 is started first and waits, so this script leads: it sends "GAME <gym id>",
+# code_062 answers "READY" and this script sends "ACK" back before the game starts.
+# When this run ends or is interrupted, "QUIT" tells code_062 to leave the game and
+# wait for the next instruction.
+GAME_PREFIX = "GAME "
+QUIT_MESSAGE = "QUIT"
+RESEND_INTERVAL = 2.0
+
 class SerialThread(threading.Thread):
 
-    def __init__(self, queue, port, baudrate):
+    def __init__(self, queue, port, baudrate, gym_id):
         super().__init__(daemon=True)
         self.queue = queue
+        self.gym_id = gym_id
+        self.quit_sent = False
         self.receiver = configure_serial(port, baudrate)
         
     def run(self):
@@ -907,15 +1119,31 @@ class SerialThread(threading.Thread):
 
         if start_play == False:
             print("waiting handshake in thread...\n\r")
+            self.receiver.reset_input_buffer()
+            received = ""
+            sent_at = 0.0
             while True:
+                # code_062 may not be listening yet, so keep telling it which game to run
+                if time.time() - sent_at > RESEND_INTERVAL:
+                    message = GAME_PREFIX + self.gym_id + "\n"
+                    self.receiver.write(message.encode())
+                    self.receiver.flush()
+                    sent_at = time.time()
+                    print(f"Sent the game to code_062: {self.gym_id}")
+
                 if self.receiver.in_waiting > 0:
                     signal = self.receiver.read(self.receiver.in_waiting)
                     print(f"Received signal: {signal}")
-                    if signal == b'READY\n':
+                    received += signal.decode(errors="replace")
+                    if "READY" in received:
                         print("Handshake signal received.")
                         self.receiver.write(b'ACK\n')
+                        self.receiver.flush()
+                        print("ACK sent, code_062 can start the game")
                         start_play = True
                         break
+
+                time.sleep(0.01)
 
         self.receiver.flush()
         try:
@@ -927,19 +1155,48 @@ class SerialThread(threading.Thread):
         except serial.SerialException as e:
             print(f"Error: {e}")
         finally:
+            # stop_thread may have been set without going through stop(), code_062
+            # still has to be told before this port goes away
+            self.send_quit()
             if self.receiver and self.receiver.isOpen():
                 self.receiver.close()
                 print("SerialThread run: Serial port is closed.")
                 
+    def send_quit(self):
+        """
+        Tell code_062 to quit the game and wait for the next instruction.
+
+        Sent once per run: a second QUIT would arrive while code_062 is waiting for
+        the next game and would end that one straight away.
+        """
+        if self.quit_sent:
+            return
+        try:
+            if self.receiver and self.receiver.isOpen():
+                self.receiver.write((QUIT_MESSAGE + "\n").encode())
+                self.receiver.flush()
+                self.quit_sent = True
+                print("QUIT sent, code_062 quits the game and waits for the next one")
+        except serial.SerialException as e:
+            print(f"Error: {e}")
+
     def stop(self):
         global stop_thread
+        # this run is over, whether it finished or was interrupted. Tell code_062 while
+        # the port is certainly still open, before anything closes it
+        self.send_quit()
+        time.sleep(0.1)
         stop_thread = True
+        # let the run loop leave its read and close the port itself, closing it here
+        # while that read is in progress is what breaks the port
+        if self.is_alive():
+            self.join(timeout=1.0)
         if self.receiver and self.receiver.isOpen():
             self.receiver.close()
             print("SerialThread stop: Serial port is closed.")
 
 # Start the receiver thread
-thread = SerialThread(queue=data_queue, port=port, baudrate=baudrate)
+thread = SerialThread(queue=data_queue, port=port, baudrate=baudrate, gym_id=args.gym_id)
 thread.start()
 
 def process_serial_data():
@@ -1397,7 +1654,7 @@ def main():
         
         files = MODEL_FILES
         
-        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
+        labels = [model_label(model_file, index) for index, model_file in enumerate(files)]
        
     if args.model == 3:
         
@@ -1405,7 +1662,7 @@ def main():
         
         files = MODEL_FILES_CODE_061
         
-        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
+        labels = [model_label(model_file, index) for index, model_file in enumerate(files)]
 
     if args.model == 4:
         
@@ -1413,7 +1670,7 @@ def main():
         
         files = MODEL_FILES_CODE_069
                 
-        labels = ['0_000_000', '1_000_000', '2_000_000', '3_000_000', '4_000_000', '5_000_000', '6_000_000', '7_000_000', '8_000_000', '9_000_000', '10_000_000']
+        labels = [model_label(model_file, index) for index, model_file in enumerate(files)]
 
     for file in files:
         
@@ -1681,7 +1938,6 @@ def main():
             break
 
         file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
-        file_path3 = env_id + '-hns-data-' + args.algo + '-model-'+ labels[file_num] +'.npz'
         
         if first_result:
             array_for_dict = scores
@@ -1721,21 +1977,25 @@ def main():
             plt.pause(0.1)
             plt.show()
 
-        np.savez(file_path3, array=hns_scores)
+        # the human normalized scores are not written to a npz file, the numbers below
+        # are computed from the scores of the episodes that were just played
+        print("HNS:", hns_scores)
+        min_score = hns_scores.min()
+        max_score = hns_scores.max()
+        median = np.median(hns_scores)
+        average = np.mean(hns_scores)
 
-        # Load the existing data from the .npz file
-        loaded_data = np.load(file_path3)
-        
-        # Retrieve the existing array and datetime
-        existing_array = loaded_data['array']
-        print("Loaded HNS:", existing_array)
-        min_score = existing_array.min()
-        max_score = existing_array.max()
-        median = np.median(existing_array)        
-        average = np.mean(existing_array)
-        
-        print("Loaded HNS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
-        print("*"*5 + " Test results (HNS) were saved to ", file_path3)
+        print("HNS min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
+
+        # point estimates and confidence intervals, from those same scores
+        hns_point, hns_interval = hns_interval_estimates(
+            hns_scores,
+            env_id + "-" + labels[file_num],
+            reps=args.bootstrap_reps,
+            confidence_interval_size=args.confidence_interval)
+
+        save_hns_estimates(env_id, file, labels[file_num], hns_scores.size,
+                           hns_point, hns_interval)
         
         x3_data.append(file_num)
         y31_data.append(median)
@@ -1775,8 +2035,8 @@ def main():
 
     env.close()
     stop_kbthread = True
+    thread.stop()
     stop_thread = True
-    # thread.stop()
     print("*"*5 + " Thread is closed.")
         
     time.sleep(0.5)
@@ -1784,4 +2044,10 @@ def main():
     return
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Interrupted, telling code_062 to quit the game")
+    finally:
+        # however this run ended, code_062 must not be left playing
+        thread.stop()

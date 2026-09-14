@@ -188,6 +188,8 @@ def parse_args():
         help='the id of the gym environment')
     parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
         help='yml file holding the hyper-parameters and layout constants')
+    parser.add_argument('--training-steps', type=str, default="1M",
+        help='which option under training_steps in the yml to read, for example 10M, 1M, 500K')
     parser.add_argument('--model-file', type=str, default=None,
         help='the model file name for the agent to load')
     parser.add_argument('--buffer-file', type=str, default=None,
@@ -265,10 +267,15 @@ EXPLORATION_INITIAL_EPSILON = config["dqn"]["exploration"]["initial_epsilon"]
 # 0.01, Final value of epsilon in epsilon-greedy exploration
 EXPLORATION_FINAL_EPSILON = config["dqn"]["exploration"]["final_epsilon"]
 
-# 500000
-TEST_STEP_SIZE = config["testing_options"]["1M"]["step_size"]
-# 1000000
-MAX_TEST_STEPS = config["testing_options"]["1M"]["max_steps"]
+# --training-steps picks one of the options listed under training_steps in the yml
+if args.training_steps not in config["training_steps"]:
+    raise SystemExit(f"--training-steps {args.training_steps} is not in {CONFIG_FILE}, "
+                     f"the options are: {', '.join(config['training_steps'])}")
+
+# 500000 with the default --training-steps 1M
+TEST_STEP_SIZE = config["training_steps"][args.training_steps]["step_size"]
+# 1000000 with the default --training-steps 1M
+MAX_TEST_STEPS = config["training_steps"][args.training_steps]["max_steps"]
 
 # 4
 IMAGE_CHANNELS = config["observation"]["image_channels"]
@@ -814,11 +821,20 @@ start_play = False
 port = '/dev/ttyUSB1'  # serial port number based on the system setting
 baudrate = 115200  # baud rate for serial communication
 
+# Handshake with code_062, which plays the game this agent learns.
+# code_062 is started first and waits, so this script leads: it sends "GAME <gym id>",
+# code_062 answers "READY" and this script sends "ACK" back before the game starts.
+GAME_PREFIX = "GAME "
+QUIT_MESSAGE = "QUIT"
+RESEND_INTERVAL = 2.0
+
 class SerialThread(threading.Thread):
 
-    def __init__(self, queue, port, baudrate):
+    def __init__(self, queue, port, baudrate, gym_id):
         super().__init__(daemon=True)
         self.queue = queue
+        self.gym_id = gym_id
+        self.quit_sent = False
         self.receiver = configure_serial(port, baudrate)
         
     def run(self):
@@ -828,15 +844,31 @@ class SerialThread(threading.Thread):
 
         if start_play == False:
             print("waiting handshake in thread...\n\r")
+            self.receiver.reset_input_buffer()
+            received = ""
+            sent_at = 0.0
             while True:
+                # code_062 may not be listening yet, so keep telling it which game to run
+                if time.time() - sent_at > RESEND_INTERVAL:
+                    message = GAME_PREFIX + self.gym_id + "\n"
+                    self.receiver.write(message.encode())
+                    self.receiver.flush()
+                    sent_at = time.time()
+                    print(f"Sent the game to code_062: {self.gym_id}")
+
                 if self.receiver.in_waiting > 0:
                     signal = self.receiver.read(self.receiver.in_waiting)
                     print(f"Received signal: {signal}")
-                    if signal == b'READY\n':
+                    received += signal.decode(errors="replace")
+                    if "READY" in received:
                         print("Handshake signal received.")
                         self.receiver.write(b'ACK\n')
+                        self.receiver.flush()
+                        print("ACK sent, code_062 can start the game")
                         start_play = True
                         break
+
+                time.sleep(0.01)
 
         self.receiver.flush()
         try:
@@ -848,19 +880,48 @@ class SerialThread(threading.Thread):
         except serial.SerialException as e:
             print(f"Error: {e}")
         finally:
+            # stop_thread may have been set without going through stop(), code_062
+            # still has to be told before this port goes away
+            self.send_quit()
             if self.receiver and self.receiver.isOpen():
                 self.receiver.close()
                 print("SerialThread run: Serial port is closed.")
                 
+    def send_quit(self):
+        """
+        Tell code_062 to quit the game and wait for the next instruction.
+
+        Sent once per run: a second QUIT would arrive while code_062 is waiting for
+        the next game and would end that one straight away.
+        """
+        if self.quit_sent:
+            return
+        try:
+            if self.receiver and self.receiver.isOpen():
+                self.receiver.write((QUIT_MESSAGE + "\n").encode())
+                self.receiver.flush()
+                self.quit_sent = True
+                print("QUIT sent, code_062 quits the game and waits for the next one")
+        except serial.SerialException as e:
+            print(f"Error: {e}")
+
     def stop(self):
         global stop_thread
+        # this run is over, whether it finished or was interrupted. Tell code_062 while
+        # the port is certainly still open, before anything closes it
+        self.send_quit()
+        time.sleep(0.1)
         stop_thread = True
+        # let the run loop leave its read and close the port itself, closing it here
+        # while that read is in progress is what breaks the port
+        if self.is_alive():
+            self.join(timeout=1.0)
         if self.receiver and self.receiver.isOpen():
             self.receiver.close()
             print("SerialThread stop: Serial port is closed.")
 
 # Start the receiver thread
-thread = SerialThread(queue=data_queue, port=port, baudrate=baudrate)
+thread = SerialThread(queue=data_queue, port=port, baudrate=baudrate, gym_id=args.gym_id)
 thread.start()
 
 def process_serial_data():
@@ -937,6 +998,42 @@ class CameraThread(threading.Thread):
 
 cam = CameraThread(frame_queue)
 cam.start()
+
+# Everything this script trains runs on the real world system, so that is what its
+# models are labelled with. code_070 reads this label when it reports its test results.
+TRAINING_SYSTEM = "real_world"
+
+def save_model_info(model_path: str, total_steps: int) -> str:
+    """
+    Write what a saved model was trained with, next to the model itself.
+
+    The .pth file holds a bare state dict with no room for metadata, so the settings
+    that matter when the model is tested later go in a json file of the same name.
+
+    Args:
+        model_path: the .pth file that was just written
+        total_steps: the training step the model was saved at
+
+    Returns:
+        The path of the json file.
+    """
+    info = {
+        "gym_id": args.gym_id,
+        "env_id": get_env_id(args.gym_id),
+        "system": TRAINING_SYSTEM,
+        "trained_by": "code_069",
+        "training": args.training,
+        "seed": args.seed,
+        "total_steps": total_steps,
+        "training_steps": args.training_steps,
+        "model_file": model_path,
+        "saved": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    info_path = os.path.splitext(model_path)[0] + ".json"
+    with open(info_path, "w") as info_file:
+        json.dump(info, info_file, indent=1)
+    return info_path
 
 def save_checkpoint(
     filepath: str,
@@ -1521,7 +1618,9 @@ def main():
     
     os.makedirs("../data/saved_models", exist_ok=True)
 
-    torch.save(agent.dQ_network.state_dict(), "../data/saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+    model_path = "../data/saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+    torch.save(agent.dQ_network.state_dict(), model_path)
+    save_model_info(model_path, total_steps)
 
     cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
     cv2.moveWindow('Image', 0, 600)
@@ -1658,7 +1757,9 @@ def main():
             )
             
         if total_steps % TEST_STEP_SIZE == 0:
-            torch.save(agent.dQ_network.state_dict(), "saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+            model_path = "../data/saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            torch.save(agent.dQ_network.state_dict(), model_path)
+            save_model_info(model_path, total_steps)
 
         if total_steps > MAX_TEST_STEPS and done == True:
             terminated = False
@@ -1898,7 +1999,9 @@ def main():
                 )
                 
             if total_steps % TEST_STEP_SIZE == 0:
-                torch.save(agent.dQ_network.state_dict(), "saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth")
+                model_path = "../data/saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+                torch.save(agent.dQ_network.state_dict(), model_path)
+                save_model_info(model_path, total_steps)
             
             if total_steps > MAX_TEST_STEPS and done == True:
                 terminated = False
@@ -1936,8 +2039,8 @@ def main():
     
     env.close()
     stop_kbthread = True
-    stop_thread = True
     thread.stop()
+    stop_thread = True
     print("*"*5 + " Thread is closed.")
 
     time.sleep(0.5)
@@ -1945,4 +2048,10 @@ def main():
     return
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Interrupted, telling code_062 to quit the game")
+    finally:
+        # however this run ended, code_062 must not be left playing
+        thread.stop()
