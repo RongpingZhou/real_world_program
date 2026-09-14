@@ -1003,6 +1003,22 @@ cam.start()
 # models are labelled with. code_070 reads this label when it reports its test results.
 TRAINING_SYSTEM = "real_world"
 
+# Where the trained models go, outside the repository
+SAVED_MODELS_DIR = "../data/saved_models"
+
+def ensure_saved_models_directory() -> str:
+    """
+    Make sure the directory the models are written to exists.
+
+    It sits outside the repository and may not be there on a fresh machine, and
+    torch.save does not create it.
+
+    Returns:
+        The directory.
+    """
+    os.makedirs(SAVED_MODELS_DIR, exist_ok=True)
+    return SAVED_MODELS_DIR
+
 def save_model_info(model_path: str, total_steps: int) -> str:
     """
     Write what a saved model was trained with, next to the model itself.
@@ -1221,6 +1237,9 @@ def find_latest_checkpoint(checkpoint_dir: str = "checkpoints", prefix: str = "c
     return str(latest)
 
 def main():
+
+    # the models of this run go there, make sure it is there before anything is trained
+    ensure_saved_models_directory()
 
     device = torch.device("cuda" if (torch.cuda.is_available() and args.cuda) else "cpu")
     if args.cuda == False:
@@ -1616,8 +1635,6 @@ def main():
     truncated = False
     done = terminated or truncated
     
-    os.makedirs("../data/saved_models", exist_ok=True)
-
     model_path = "../data/saved_models/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
     torch.save(agent.dQ_network.state_dict(), model_path)
     save_model_info(model_path, total_steps)

@@ -124,6 +124,11 @@ key_timing: *key_timing_mean_typist
 # Only code_067 uses this one.
 sb3_fire_reset: false
 
+# Where code_062 puts the game window on the screen it plays on, in pixels.
+game_window:
+  x_offset: 800
+  y_offset: 900
+
 # The checkpoints the test scripts load, per game and then per option.
 # The game name is the env id that evaluation/atari_data.py get_env_id() returns for the
 # --gym-id under test, so BreakoutNoFrameskip-v4 reads breakout, AmidarNoFrameskip-v4

@@ -36,6 +36,7 @@ import serial
 import time
 
 import argparse
+import yaml
 from distutils.util import strtobool
 
 import numpy as np
@@ -65,6 +66,14 @@ print(f"screen width: {screen_width}, screen height: {screen_height}")
 
 import os
 
+# The window offsets live in a yml file rather than in the code, the same file the
+# other scripts of this system read. The file next to this script is the default,
+# pass --config to use another one.
+DEFAULT_CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "real_world_system_config.yml",
+)
+
 class MissingKeysToAction(Exception):
     """Raised when the environment does not have a default ``keys_to_action`` mapping."""
 
@@ -73,6 +82,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gym-id', type=str, default="BreakoutNoFrameskip-v4",
         help='the id of the gym environment')
+    parser.add_argument('--config', type=str, default=DEFAULT_CONFIG_FILE,
+        help='yml file holding the position of the game window')
     parser.add_argument("--max-episode-steps", type=int, default=60000,
         help="how many steps to run in one episode in each environment")
     parser.add_argument("--fps", type=int, default=30,
@@ -107,6 +118,18 @@ def parse_args():
 args = parse_args()
 print(args)
 print(vars(args))
+
+CONFIG_FILE = args.config
+
+with open(CONFIG_FILE, "r") as config_file:
+    config = yaml.safe_load(config_file)
+
+print("config file: ", CONFIG_FILE)
+
+# 800
+WINDOW_X_OFFSET = config["game_window"]["x_offset"]
+# 900
+WINDOW_Y_OFFSET = config["game_window"]["y_offset"]
 
 # device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 device = "cpu"
@@ -712,8 +735,9 @@ def main():
     print(f"game.video_size: {game.video_size}")
 
     # window_x = 50
-    window_x = 800
-    window_y = screen_height - game.video_size[1] - 120
+    window_x = WINDOW_X_OFFSET
+    # window_y = screen_height - game.video_size[1] - 120
+    window_y = WINDOW_Y_OFFSET
 
     # window_x = 1200
     # window_y = 80

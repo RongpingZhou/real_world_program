@@ -717,6 +717,22 @@ def system_name(sensor) -> str:
     """
     return SYSTEM_NAMES.get(sensor, str(sensor))
 
+# Where the trained models go, outside the repository
+SAVED_MODELS_DIR = "../data/saved_models"
+
+def ensure_saved_models_directory() -> str:
+    """
+    Make sure the directory the models are written to exists.
+
+    It sits outside the repository and may not be there on a fresh machine, and
+    torch.save does not create it.
+
+    Returns:
+        The directory.
+    """
+    os.makedirs(SAVED_MODELS_DIR, exist_ok=True)
+    return SAVED_MODELS_DIR
+
 def save_model_info(model_path: str, total_steps: int) -> str:
     """
     Write what a saved model was trained with, next to the model itself.
@@ -991,6 +1007,9 @@ if args.sensor == 1:
     cam.start()
 
 def main():
+
+    # the models of this run go there, make sure it is there before anything is trained
+    ensure_saved_models_directory()
 
     device = torch.device("cuda" if (torch.cuda.is_available() and args.cuda) else "cpu")
 
