@@ -124,6 +124,12 @@ key_timing: *key_timing_mean_typist
 # Only code_067 uses this one.
 sb3_fire_reset: false
 
+# Where the training runs write, outside the repository. code_067 and code_069 read
+# these, the tensorboard logs go to runs and the models to saved_models.
+directories:
+  runs: ../data/runs
+  saved_models: ../data/saved_models
+
 # Where code_062 puts the game window on the screen it plays on, in pixels.
 game_window:
   x_offset: 800

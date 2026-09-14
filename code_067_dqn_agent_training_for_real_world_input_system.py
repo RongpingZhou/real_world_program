@@ -717,8 +717,11 @@ def system_name(sensor) -> str:
     """
     return SYSTEM_NAMES.get(sensor, str(sensor))
 
-# Where the trained models go, outside the repository
-SAVED_MODELS_DIR = "../data/saved_models"
+# Where this run writes, both read from the yml
+# ../data/runs
+RUNS_DIR = config["directories"]["runs"]
+# ../data/saved_models
+SAVED_MODELS_DIR = config["directories"]["saved_models"]
 
 def ensure_saved_models_directory() -> str:
     """
@@ -1094,7 +1097,7 @@ def main():
     input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
     agent = DQNAgent(env, input_shape=input_shape, device = device, seed =args.seed)
     # save a randomly initialized model for testing loading
-    model_path = "../data/saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+    model_path = SAVED_MODELS_DIR + "/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
     torch.save(agent.dQ_network.state_dict(), model_path)
     save_model_info(model_path, total_steps)
     # Initialize checkpoint-related variables
@@ -1207,7 +1210,7 @@ def main():
         if log_folder is None or not Path(log_folder).exists():
             # Create new folder if old one doesn't exist
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_folder = f"./runs/{env_id}_resume_{timestamp}"
+            log_folder = f"{RUNS_DIR}/{env_id}_resume_{timestamp}"
             print(f"Step {total_steps}: Original log folder not found, creating new: {log_folder}")
         else:
             print(f"\n{'='*60}")
@@ -1234,7 +1237,7 @@ def main():
     else:
         # Fresh training - create new log folder
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_folder = f"./runs/{env_id}_{timestamp}"
+        log_folder = f"{RUNS_DIR}/{env_id}_{timestamp}"
         print(f"Step {total_steps}: Creating new log folder: {log_folder}")
 
     # Store log folder in args for checkpointing
@@ -1655,7 +1658,7 @@ def main():
 
         # if total_steps % 1000000 == 0:
         if total_steps % TEST_STEP_SIZE == 0:
-            model_path = "../data/saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            model_path = SAVED_MODELS_DIR + "/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
             torch.save(agent.dQ_network.state_dict(), model_path)
             save_model_info(model_path, total_steps)        
         # End of training process
@@ -1910,7 +1913,7 @@ def main():
             )
 
         if total_steps % TEST_STEP_SIZE == 0:
-            model_path = "../data/saved_models/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            model_path = SAVED_MODELS_DIR + "/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
             torch.save(agent.dQ_network.state_dict(), model_path)
             save_model_info(model_path, total_steps)        
 
