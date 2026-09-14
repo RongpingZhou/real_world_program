@@ -55,6 +55,7 @@
 #                  (default sim2real-robustness-ratio.csv)
 #   DISPLAY_GAME   --display for the tests (default 1)
 #   FPS ZOOM PLOT  --fps, --zoom and --plot for the tests (defaults 300, 1.0, 0)
+#   CROP           --crop for code_069 and code_070, 1 crops the window (default 1)
 #   SAVED_MODELS_DIR      where code_067 and code_069 write (default ../data/saved_models)
 #   DATA_SAVED_MODELS_DIR the second place code_069 writes (default ../data/saved_models)
 #   CHECKPOINT_DIR --checkpoint-dir for the trainings (default ./checkpoints)
@@ -84,6 +85,8 @@ GAP_FILE="${GAP_FILE:-sim2real-gap.csv}"
 RATIO_FILE="${RATIO_FILE:-sim2real-robustness-ratio.csv}"
 DISPLAY_GAME="${DISPLAY_GAME:-1}"
 FPS="${FPS:-300}"
+# code_069 and code_070 run on the real system, where the window is cropped
+CROP="${CROP:-1}"
 ZOOM="${ZOOM:-1.0}"
 PLOT="${PLOT:-0}"
 SAVED_MODELS_DIR="${SAVED_MODELS_DIR:-../data/saved_models}"
@@ -349,7 +352,7 @@ if [ "$STEP_070" = "1" ]; then
         --confidence-interval "$CONFIDENCE" --performance-dir "$PERFORMANCE_DIR" \
         --performance-file "$PERFORMANCE_FILE" --max-episode-steps "$MAX_EPISODE_STEPS" \
         --display "$DISPLAY_GAME" --fps "$FPS" --zoom "$ZOOM" --plot "$PLOT" \
-        --cuda "$CUDA" --seed "$SEED"
+        --crop "$CROP" --cuda "$CUDA" --seed "$SEED"
 fi
 
 # 4. the Sim2Real Gap
@@ -369,7 +372,8 @@ if [ "$STEP_069" = "1" ]; then
         python "$TRAIN_069" \
         --gym-id "$GAME" --config "$CONFIG" --training-steps "$TRAINING_STEPS" \
         --training 1 --checkpoint "$CHECKPOINT" --checkpoint-dir "$CHECKPOINT_DIR" \
-        --max-episode-steps "$MAX_EPISODE_STEPS" --cuda "$CUDA" --fps "$FPS" --seed "$SEED"
+        --max-episode-steps "$MAX_EPISODE_STEPS" --cuda "$CUDA" --fps "$FPS" \
+        --crop "$CROP" --seed "$SEED"
 
     # the models of step 5 have to be in the config before step 6 reads it
     read -r ENV_ID COUNT_067 COUNT_069 <<< "$(write_config)"
@@ -392,7 +396,7 @@ if [ "$STEP_070_CODE_069" = "1" ]; then
         --confidence-interval "$CONFIDENCE" --performance-dir "$PERFORMANCE_DIR" \
         --performance-file "$PERFORMANCE_FILE" --max-episode-steps "$MAX_EPISODE_STEPS" \
         --display "$DISPLAY_GAME" --fps "$FPS" --zoom "$ZOOM" --plot "$PLOT" \
-        --cuda "$CUDA" --seed "$SEED"
+        --crop "$CROP" --cuda "$CUDA" --seed "$SEED"
 fi
 
 # 7. the Sim2Real Robustness Ratio
