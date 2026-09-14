@@ -55,7 +55,7 @@
 #                  (default sim2real-robustness-ratio.csv)
 #   DISPLAY_GAME   --display for the tests (default 1)
 #   FPS ZOOM PLOT  --fps, --zoom and --plot for the tests (defaults 300, 1.0, 0)
-#   SAVED_MODELS_DIR      where code_067 and code_069 write (default saved_models)
+#   SAVED_MODELS_DIR      where code_067 and code_069 write (default ../data/saved_models)
 #   DATA_SAVED_MODELS_DIR the second place code_069 writes (default ../data/saved_models)
 #   CHECKPOINT_DIR --checkpoint-dir for the trainings (default ./checkpoints)
 #   BASE_CONFIG    the yml the generated config starts from (default real_world_system_config.yml)
@@ -86,7 +86,7 @@ DISPLAY_GAME="${DISPLAY_GAME:-1}"
 FPS="${FPS:-300}"
 ZOOM="${ZOOM:-1.0}"
 PLOT="${PLOT:-0}"
-SAVED_MODELS_DIR="${SAVED_MODELS_DIR:-saved_models}"
+SAVED_MODELS_DIR="${SAVED_MODELS_DIR:-../data/saved_models}"
 DATA_SAVED_MODELS_DIR="${DATA_SAVED_MODELS_DIR:-../data/saved_models}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-./checkpoints}"
 BASE_CONFIG="${BASE_CONFIG:-real_world_system_config.yml}"
@@ -156,13 +156,20 @@ def find(prefix, directories):
     """the checkpoints of one game, ordered by the step in the file name"""
     pattern = re.compile(r"^" + prefix + re.escape(env_id) + r"_(\d+)\.pth$")
     found = []
+    seen = set()
+    # the two directories may be the same one, a file is taken once either way
     for directory in directories:
         if not os.path.isdir(directory):
             continue
         for name in os.listdir(directory):
             match = pattern.match(name)
             if match:
-                found.append((int(match.group(1)), os.path.join(directory, name)))
+                path = os.path.join(directory, name)
+                real = os.path.realpath(path)
+                if real in seen:
+                    continue
+                seen.add(real)
+                found.append((int(match.group(1)), path))
     return [path for _step, path in sorted(found)]
 
 saved = os.environ["SAVED_MODELS_DIR"]
