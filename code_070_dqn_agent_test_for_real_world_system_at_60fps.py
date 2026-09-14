@@ -416,6 +416,23 @@ def model_label(model_file, file_num):
     # nothing to read the steps from, fall back to the name of the file
     return os.path.splitext(os.path.basename(model_file))[0]
 
+# Where the scores of every tested checkpoint are written, read from the yml
+# ../data/tests
+TESTS_DIR = config["directories"]["tests"]
+
+def ensure_tests_directory():
+    """
+    Make sure the directory the npz files are written to exists.
+
+    It sits outside the repository and may not be there on a fresh machine, and
+    np.savez does not create it.
+
+    return:
+    the directory
+    """
+    os.makedirs(TESTS_DIR, exist_ok=True)
+    return TESTS_DIR
+
 # Point estimates and confidence intervals of the human normalized scores,
 # the four aggregates rliable reports
 AGGREGATE_NAMES = ("Mean", "Median", "IQM", "Optimality gap")
@@ -1277,6 +1294,9 @@ cam.start()
         
 def main():
 
+    # the scores of this run go there, make sure it is there before anything is tested
+    ensure_tests_directory()
+
     plt.ion()  # Turn on interactive mode
     fig1, ax1 = plt.subplots()
     line1, = ax1.plot([], [], 'o-', label='median') 
@@ -1937,7 +1957,9 @@ def main():
             print("breaking out of the while loop for files")
             break
 
-        file_path = env_id + '-data-' + args.algo + '-model-' + labels[file_num] + '.npz'
+        # the name says which game, which checkpoint and which system tested it
+        file_path = os.path.join(TESTS_DIR, env_id + '-data-' + args.algo + '-model-'
+                                 + labels[file_num] + '-' + TEST_SYSTEM + '.npz')
         
         if first_result:
             array_for_dict = scores
@@ -1947,7 +1969,9 @@ def main():
             array_for_dict = np.vstack((array_for_dict, scores))
             array_for_hns = np.vstack((array_for_hns, hns_scores))
         
-        np.savez(file_path, array=scores)
+        # the label goes inside the file as well, so it travels with the scores
+        np.savez(file_path, array=scores, system=TEST_SYSTEM, gym_id=args.gym_id,
+                 model=labels[file_num])
 
         # Load the existing data from the .npz file
         loaded_data = np.load(file_path)

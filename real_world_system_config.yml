@@ -129,6 +129,8 @@ sb3_fire_reset: false
 directories:
   runs: ../data/runs
   saved_models: ../data/saved_models
+  # code_068 and code_070 write the scores of every checkpoint they test here
+  tests: ../data/tests
 
 # Where code_062 puts the game window on the screen it plays on, in pixels.
 game_window:
