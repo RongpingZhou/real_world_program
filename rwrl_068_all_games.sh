@@ -198,7 +198,10 @@ write_config = os.environ["WRITE_CONFIG"] == "1"
 per_game = {}
 for gym_id in games:
     env_id = get_env_id(gym_id)
-    pattern = re.compile(r"^model_updates_dqn_" + re.escape(env_id) + r"_(\d+)\.pth$")
+    # code_067 names its models code_067_model_updates_dqn_<game>_<system>_<steps>.pth,
+    # models from before that carry neither the prefix nor the system
+    pattern = re.compile(r"^(?:code_067_)?model_updates_dqn_" + re.escape(env_id)
+                         + r"_(?:[a-z_0-9]+?_)?(\d+)\.pth$")
     found = []
     for name in os.listdir(directory) if os.path.isdir(directory) else []:
         match = pattern.match(name)

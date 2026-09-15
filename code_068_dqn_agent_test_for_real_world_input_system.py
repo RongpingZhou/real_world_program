@@ -1011,8 +1011,12 @@ def main():
         }
     env_id = get_env_id(args.gym_id)
     print(f"env_id: {env_id}")
-    if env_id == "breakout":
-        env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
+
+    # Without this the episode only ends at the limit the emulator itself has,
+    # 108000 frames, whatever --max-episode-steps says. It used to be applied to
+    # breakout alone, so every other game ran to that emulator limit.
+    env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
+    print(f"episode limited to {args.max_episode_steps} steps")
     if "FIRE" in env.unwrapped.get_action_meanings():
         has_fire = True
         print("Environment has FIRE action, will use FireResetEnv wrapper")
@@ -1656,9 +1660,15 @@ def main():
         
         print(f"file_num: {file_num}, labels: {labels}")
         print(f"label: {labels[file_num]}, scores: {scores}")
-        # the name says which game, which checkpoint and which system tested it
+        # the system the model under test was trained in, from the json code_067 or
+        # code_069 wrote next to it, unknown when there is no json to read
+        training_system = model_training_system(file)
+
+        # the name says which game, which checkpoint, and the two systems: the one the
+        # model was trained in and the one it was tested in
         file_path = os.path.join(TESTS_DIR, env_id + '-data-' + args.algo + '-model-'
-                                 + labels[file_num] + '-' + TEST_SYSTEM + '.npz')
+                                 + labels[file_num] + '-trained_' + training_system
+                                 + '-tested_' + TEST_SYSTEM + '.npz')
         
         if first_result:
             array_for_scores = scores
@@ -1668,9 +1678,9 @@ def main():
             array_for_scores = np.vstack((array_for_scores, scores))
             array_for_hns = np.vstack((array_for_hns, hns_scores))
         
-        # the label goes inside the file as well, so it travels with the scores
-        np.savez(file_path, array=scores, system=TEST_SYSTEM, gym_id=args.gym_id,
-                 model=labels[file_num])
+        # the labels go inside the file as well, so they travel with the scores
+        np.savez(file_path, array=scores, gym_id=args.gym_id, model=labels[file_num],
+                 model_file=file, training_system=training_system, test_system=TEST_SYSTEM)
 
         # Load the existing data from the .npz file
         loaded_data = np.load(file_path)

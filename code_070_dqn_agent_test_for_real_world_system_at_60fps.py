@@ -1957,9 +1957,15 @@ def main():
             print("breaking out of the while loop for files")
             break
 
-        # the name says which game, which checkpoint and which system tested it
+        # the system the model under test was trained in, from the json code_067 or
+        # code_069 wrote next to it, unknown when there is no json to read
+        training_system = model_training_system(file)
+
+        # the name says which game, which checkpoint, and the two systems: the one the
+        # model was trained in and the one it was tested in
         file_path = os.path.join(TESTS_DIR, env_id + '-data-' + args.algo + '-model-'
-                                 + labels[file_num] + '-' + TEST_SYSTEM + '.npz')
+                                 + labels[file_num] + '-trained_' + training_system
+                                 + '-tested_' + TEST_SYSTEM + '.npz')
         
         if first_result:
             array_for_dict = scores
@@ -1969,9 +1975,9 @@ def main():
             array_for_dict = np.vstack((array_for_dict, scores))
             array_for_hns = np.vstack((array_for_hns, hns_scores))
         
-        # the label goes inside the file as well, so it travels with the scores
-        np.savez(file_path, array=scores, system=TEST_SYSTEM, gym_id=args.gym_id,
-                 model=labels[file_num])
+        # the labels go inside the file as well, so they travel with the scores
+        np.savez(file_path, array=scores, gym_id=args.gym_id, model=labels[file_num],
+                 model_file=file, training_system=training_system, test_system=TEST_SYSTEM)
 
         # Load the existing data from the .npz file
         loaded_data = np.load(file_path)

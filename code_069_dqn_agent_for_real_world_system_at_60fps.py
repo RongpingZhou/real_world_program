@@ -1638,7 +1638,8 @@ def main():
     truncated = False
     done = terminated or truncated
     
-    model_path = SAVED_MODELS_DIR + "/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+    model_path = (SAVED_MODELS_DIR + "/code_069_model_updates_dqn_" + env_id + "_"
+                  + TRAINING_SYSTEM + "_" + str(total_steps) + ".pth")
     torch.save(agent.dQ_network.state_dict(), model_path)
     save_model_info(model_path, total_steps)
 
@@ -1777,7 +1778,8 @@ def main():
             )
             
         if total_steps % TEST_STEP_SIZE == 0:
-            model_path = SAVED_MODELS_DIR + "/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            model_path = (SAVED_MODELS_DIR + "/code_069_model_updates_dqn_" + env_id + "_"
+                          + TRAINING_SYSTEM + "_" + str(total_steps) + ".pth")
             torch.save(agent.dQ_network.state_dict(), model_path)
             save_model_info(model_path, total_steps)
 
@@ -2019,7 +2021,8 @@ def main():
                 )
                 
             if total_steps % TEST_STEP_SIZE == 0:
-                model_path = SAVED_MODELS_DIR + "/code_069_model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+                model_path = (SAVED_MODELS_DIR + "/code_069_model_updates_dqn_" + env_id + "_"
+                              + TRAINING_SYSTEM + "_" + str(total_steps) + ".pth")
                 torch.save(agent.dQ_network.state_dict(), model_path)
                 save_model_info(model_path, total_steps)
             

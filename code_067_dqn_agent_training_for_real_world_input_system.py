@@ -717,6 +717,10 @@ def system_name(sensor) -> str:
     """
     return SYSTEM_NAMES.get(sensor, str(sensor))
 
+# The system this run trains in, part of the name of every model it saves so a
+# simulation model and a real world input model of the same game can sit side by side
+TRAINING_SYSTEM = system_name(args.sensor)
+
 # Where this run writes, both read from the yml
 # ../data/runs
 RUNS_DIR = config["directories"]["runs"]
@@ -1097,7 +1101,8 @@ def main():
     input_shape = (IMAGE_CHANNELS, IMAGE_ROWS, IMAGE_COLS)
     agent = DQNAgent(env, input_shape=input_shape, device = device, seed =args.seed)
     # save a randomly initialized model for testing loading
-    model_path = SAVED_MODELS_DIR + "/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+    model_path = (SAVED_MODELS_DIR + "/code_067_model_updates_dqn_" + env_id + "_"
+                  + TRAINING_SYSTEM + "_" + str(total_steps) + ".pth")
     torch.save(agent.dQ_network.state_dict(), model_path)
     save_model_info(model_path, total_steps)
     # Initialize checkpoint-related variables
@@ -1658,7 +1663,8 @@ def main():
 
         # if total_steps % 1000000 == 0:
         if total_steps % TEST_STEP_SIZE == 0:
-            model_path = SAVED_MODELS_DIR + "/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            model_path = (SAVED_MODELS_DIR + "/code_067_model_updates_dqn_" + env_id + "_"
+                          + TRAINING_SYSTEM + "_" + str(total_steps) + ".pth")
             torch.save(agent.dQ_network.state_dict(), model_path)
             save_model_info(model_path, total_steps)        
         # End of training process
@@ -1913,7 +1919,8 @@ def main():
             )
 
         if total_steps % TEST_STEP_SIZE == 0:
-            model_path = SAVED_MODELS_DIR + "/model_updates_dqn_" + env_id + "_" + str(total_steps) + ".pth"
+            model_path = (SAVED_MODELS_DIR + "/code_067_model_updates_dqn_" + env_id + "_"
+                          + TRAINING_SYSTEM + "_" + str(total_steps) + ".pth")
             torch.save(agent.dQ_network.state_dict(), model_path)
             save_model_info(model_path, total_steps)        
 

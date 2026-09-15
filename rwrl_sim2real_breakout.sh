@@ -28,10 +28,17 @@
 # code_070 option that step 3 reads, the models of step 5 go under the code_069 option
 # that step 6 reads.
 #
+# A step whose result is already there is skipped, so the script can be run again to
+# fill in what is missing. A training step looks for its models, named after the system
+# they were trained in, and a test step looks for its npz files, named after the system
+# the model was trained in and the system it was tested in. FORCE=1 runs everything
+# again regardless.
+#
 # Usage:
 #   ./rwrl_sim2real_breakout.sh                      # breakout, 500K, 100 episodes
 #   GAME=PongNoFrameskip-v4 ./rwrl_sim2real_breakout.sh
 #   DRY_RUN=1 ./rwrl_sim2real_breakout.sh            # print the commands without running them
+#   FORCE=1 ./rwrl_sim2real_breakout.sh              # train and test again, ignoring what is there
 #   REPORT_ONLY=1 ./rwrl_sim2real_breakout.sh        # only recompute both numbers from the file
 #
 # Environment variables:
@@ -62,6 +69,8 @@
 #   BASE_CONFIG    the yml the generated config starts from (default real_world_system_config.yml)
 #   LOG_DIR        directory for the logs (default ./logs_sim2real)
 #   STEP_067 STEP_068 STEP_070 STEP_069 STEP_070_CODE_069   1 runs that step, 0 skips it
+#   FORCE          1 runs every step again even when its result is already there
+#                  (default 0, a step whose models or test data exist is skipped)
 #   REPORT_ONLY    1 skips every step and only reports (default 0)
 #   DRY_RUN        1 to print the commands instead of running them
 
@@ -99,6 +108,7 @@ STEP_068="${STEP_068:-1}"
 STEP_070="${STEP_070:-1}"
 STEP_069="${STEP_069:-1}"
 STEP_070_CODE_069="${STEP_070_CODE_069:-1}"
+FORCE="${FORCE:-0}"
 REPORT_ONLY="${REPORT_ONLY:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 
@@ -115,6 +125,36 @@ if [ "$REPORT_ONLY" = "1" ]; then
 fi
 
 mkdir -p "$LOG_DIR"
+
+# How many files match a pattern, none when nothing matches.
+count_matching() {
+    local count=0
+    local path
+    for path in $1; do
+        [ -e "$path" ] && count=$((count + 1))
+    done
+    echo "$count"
+}
+
+# Whether a step still has to run, given what it would produce.
+# needs_run <step toggle> <what is already there> <description>
+needs_run() {
+    local toggle="$1"
+    local existing="$2"
+    local description="$3"
+
+    if [ "$toggle" != "1" ]; then
+        return 1
+    fi
+    if [ "$FORCE" = "1" ]; then
+        return 0
+    fi
+    if [ "$existing" -gt 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] skipped, $existing $description already there"
+        return 1
+    fi
+    return 0
+}
 
 # Run one step, with its output teed to a log file.
 run_step() {
@@ -157,7 +197,8 @@ env_id = get_env_id(os.environ["GAME"])
 
 def find(prefix, directories):
     """the checkpoints of one game, ordered by the step in the file name"""
-    pattern = re.compile(r"^" + prefix + re.escape(env_id) + r"_(\d+)\.pth$")
+    # the models carry the system in their name now, older ones do not
+    pattern = re.compile(r"^" + prefix + re.escape(env_id) + r"_(?:[a-z_0-9]+?_)?(\d+)\.pth$")
     found = []
     seen = set()
     # the two directories may be the same one, a file is taken once either way
@@ -178,7 +219,7 @@ def find(prefix, directories):
 saved = os.environ["SAVED_MODELS_DIR"]
 data_saved = os.environ["DATA_SAVED_MODELS_DIR"]
 
-files_067 = find(r"model_updates_dqn_", [saved])
+files_067 = find(r"(?:code_067_)?model_updates_dqn_", [saved])
 files_069 = find(r"code_069_model_updates_dqn_", [saved, data_saved])
 
 options = {}
@@ -306,6 +347,29 @@ print(f"\nwritten to {out_path}")
 PY
 }
 
+# the game as evaluation/atari_data.py names it, and where the test data is kept,
+# both needed to see what is already there before any step runs
+read -r ENV_ID TESTS_DIR <<< "$(
+GAME="$GAME" BASE_CONFIG="$BASE_CONFIG" python - <<'ENVPY'
+import os, yaml
+from evaluation.atari_data import get_env_id
+
+with open(os.environ["BASE_CONFIG"], "r") as base:
+    config = yaml.safe_load(base)
+print(get_env_id(os.environ["GAME"]), config["directories"]["tests"])
+ENVPY
+)"
+
+# what each step would produce, a step whose result is there is skipped
+MODELS_SIMULATION=$(count_matching "$SAVED_MODELS_DIR/code_067_model_updates_dqn_${ENV_ID}_simulation_*.pth")
+MODELS_REAL_WORLD=$(count_matching "$DATA_SAVED_MODELS_DIR/code_069_model_updates_dqn_${ENV_ID}_real_world_*.pth")
+TESTS_SIM_IN_SIM=$(count_matching "$TESTS_DIR/${ENV_ID}-data-*-trained_simulation-tested_simulation.npz")
+TESTS_SIM_ON_REAL=$(count_matching "$TESTS_DIR/${ENV_ID}-data-*-trained_simulation-tested_real_world.npz")
+TESTS_REAL_ON_REAL=$(count_matching "$TESTS_DIR/${ENV_ID}-data-*-trained_real_world-tested_real_world.npz")
+
+echo "$ENV_ID models: $MODELS_SIMULATION trained in simulation, $MODELS_REAL_WORLD trained on the real world system"
+echo "$ENV_ID test data: $TESTS_SIM_IN_SIM simulation in simulation, $TESTS_SIM_ON_REAL simulation on the real world system, $TESTS_REAL_ON_REAL real world on the real world system"
+
 # where the shared file ends now, so only the rows of this run are reported
 ROWS_BEFORE=0
 if [ -f "$ESTIMATES" ] && [ "$REPORT_ONLY" != "1" ]; then
@@ -313,7 +377,7 @@ if [ -f "$ESTIMATES" ] && [ "$REPORT_ONLY" != "1" ]; then
 fi
 
 # 1. train in simulation
-if [ "$STEP_067" = "1" ]; then
+if needs_run "$STEP_067" "$MODELS_SIMULATION" "model(s) trained in simulation"; then
     run_step "$GAME step 1, code_067 training in simulation (sensor $SENSOR, $TRAINING_STEPS)" \
         "$LOG_DIR/${GAME}_seed${SEED}_067_training.log" \
         python "$TRAIN_067" \
@@ -328,7 +392,7 @@ echo "config file: $CONFIG"
 echo "$ENV_ID: $COUNT_067 code_067 model(s), $COUNT_069 code_069 model(s)"
 
 # 2. test them in simulation
-if [ "$STEP_068" = "1" ]; then
+if needs_run "$STEP_068" "$TESTS_SIM_IN_SIM" "test file(s) of simulation models in simulation"; then
     run_step "$GAME step 2, code_068 test in simulation ($COUNT_067 checkpoint(s), $N_EPISODES episodes)" \
         "$LOG_DIR/${GAME}_seed${SEED}_068_test.log" \
         python "$SIM_TEST_068" \
@@ -342,7 +406,7 @@ if [ "$STEP_068" = "1" ]; then
 fi
 
 # 3. test the same models on the real world system
-if [ "$STEP_070" = "1" ]; then
+if needs_run "$STEP_070" "$TESTS_SIM_ON_REAL" "test file(s) of simulation models on the real world system"; then
     run_step "$GAME step 3, code_070 test of the simulation models ($COUNT_067 checkpoint(s), $N_EPISODES episodes)" \
         "$LOG_DIR/${GAME}_seed${SEED}_070_test_simulation_models.log" \
         python "$REAL_TEST_070" \
@@ -366,7 +430,7 @@ else
 fi
 
 # 5. train on the real world system
-if [ "$STEP_069" = "1" ]; then
+if needs_run "$STEP_069" "$MODELS_REAL_WORLD" "model(s) trained on the real world system"; then
     run_step "$GAME step 5, code_069 training on the real world system ($TRAINING_STEPS)" \
         "$LOG_DIR/${GAME}_seed${SEED}_069_training.log" \
         python "$TRAIN_069" \
@@ -381,7 +445,7 @@ if [ "$STEP_069" = "1" ]; then
 fi
 
 # 6. test the code_069 models on the real world system
-if [ "$STEP_070_CODE_069" = "1" ]; then
+if needs_run "$STEP_070_CODE_069" "$TESTS_REAL_ON_REAL" "test file(s) of real world models on the real world system"; then
     if [ "$COUNT_069" -eq 0 ] && [ "$DRY_RUN" != "1" ]; then
         echo "No code_069 model to test, step 5 wrote nothing" >&2
         exit 1
